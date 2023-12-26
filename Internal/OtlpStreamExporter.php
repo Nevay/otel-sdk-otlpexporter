@@ -5,6 +5,7 @@ use Amp\ByteStream\WritableStream;
 use Amp\Cancellation;
 use Amp\Future;
 use Closure;
+use Google\Protobuf\Internal\Message;
 use Nevay\OtelSDK\Otlp\ProtobufFormat;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -12,11 +13,13 @@ use function Amp\async;
 
 final class OtlpStreamExporter {
 
+    private readonly ProtobufFormat $format;
     private ?WritableStream $stream;
     private ?LoggerInterface $logger;
     private ?Future $write = null;
 
     public function __construct(WritableStream $stream, ?LoggerInterface $logger = null) {
+        $this->format = ProtobufFormat::JSON;
         $this->stream = $stream;
         $this->logger = $logger;
     }
@@ -24,17 +27,18 @@ final class OtlpStreamExporter {
     /**
      * @template T
      * @param iterable<T> $batch
-     * @param Closure(iterable<T>,ProtobufFormat,?LoggerInterface):void $convert
+     * @param Closure(iterable<T>, ProtobufFormat, ?LoggerInterface): ?Message $convert
      * @return Future<bool>
      */
     public function export(iterable $batch, Closure $convert): Future {
         if (!$stream = $this->stream) {
             return Future::complete(false);
         }
+        if (!$message = $convert($batch, $this->format, $this->logger)) {
+            return Future::complete(true);
+        }
 
-        $format = ProtobufFormat::JSON;
-        $payload = Serializer::serialize($convert($batch, $format, $this->logger), $format) . "\n";
-
+        $payload = Serializer::serialize($message, $this->format) . "\n";
         $future = async($stream->write(...), $payload)
             ->map(static fn() => true)
             ->catch($this->logException(...));

@@ -92,8 +92,8 @@ final class OtlpHttpExporter {
      * @template T
      * @template R of Message
      * @param list<T> $batch
-     * @param Closure(T,ProtobufFormat,?LoggerInterface):Message $convert
-     * @param Closure(R,?LoggerInterface):bool $process
+     * @param Closure(T, ProtobufFormat, ?LoggerInterface): ?Message $convert
+     * @param Closure(R, ?LoggerInterface): bool $process
      * @param class-string<R> $class
      * @return Future<bool>
      */
@@ -101,8 +101,11 @@ final class OtlpHttpExporter {
         if ($this->closed) {
             return Future::complete(false);
         }
+        if (!$message = $convert($batch, $this->format, $this->logger)) {
+            return Future::complete(true);
+        }
 
-        $request = $this->prepareRequest($batch, $convert);
+        $request = $this->prepareRequest($message);
         $cancellation = $this->cancellation($cancellation);
 
         $future = async($this->sendRequest(...), $request, $cancellation);
@@ -159,8 +162,8 @@ final class OtlpHttpExporter {
         return $message;
     }
 
-    private function prepareRequest(iterable $batch, Closure $convert): Request {
-        $payload = Serializer::serialize($convert($batch, $this->format, $this->logger), $this->format);
+    private function prepareRequest(Message $message): Request {
+        $payload = Serializer::serialize($message, $this->format);
         $request = new Request($this->endpoint, 'POST');
         $request->setHeader('content-type', Serializer::contentType($this->format));
         if ($this->compression === 'gzip' && extension_loaded('zlib')) {
