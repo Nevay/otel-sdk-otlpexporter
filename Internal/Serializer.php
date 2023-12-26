@@ -1,9 +1,7 @@
 <?php declare(strict_types=1);
 namespace Nevay\OtelSDK\Otlp\Internal;
 
-use Google\Protobuf\Descriptor;
 use Google\Protobuf\DescriptorPool;
-use Google\Protobuf\FieldDescriptor;
 use Google\Protobuf\Internal\GPBLabel;
 use Google\Protobuf\Internal\GPBType;
 use Google\Protobuf\Internal\Message;
@@ -53,52 +51,90 @@ final class Serializer {
      * @see https://github.com/protocolbuffers/protobuf/pull/12707
      */
     private static function postProcessJsonEnumValues(Message $message, string $payload): string {
-        $pool = DescriptorPool::getGeneratedPool();
-        $desc = $pool->getDescriptorByClassName($message::class);
-        if (!$desc instanceof Descriptor) {
-            return $payload;
-        }
-
         $data = json_decode($payload);
         unset($payload);
-        self::traverseDescriptor($data, $desc);
+        self::traverseDescriptor($data, $message::class);
 
         return json_encode($data, flags: JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
-    private static function traverseDescriptor(object $data, Descriptor $desc): void {
-        for ($i = 0, $n = $desc->getFieldCount(); $i < $n; $i++) {
-            $field = $desc->getField($i);
-            $name = lcfirst(strtr(ucwords($field->getName(), '_'), ['_' => '']));
+    /**
+     * @param class-string $class
+     */
+    private static function traverseDescriptor(object $data, string $class): void {
+        foreach (self::fields($class) as $name => $field) {
             if (!property_exists($data, $name)) {
                 continue;
             }
 
-            if ($field->getLabel() === GPBLabel::REPEATED) {
+            if ($field->repeated) {
                 foreach ($data->$name as $key => $value) {
-                    $data->$name[$key] = self::traverseFieldDescriptor($value, $field);
+                    if ($field->message) {
+                        self::traverseDescriptor($value, $field->message);
+                    }
+                    if ($field->enums) {
+                        $data->$name[$key] = $field->enums[$value] ?? $value;
+                    }
                 }
             } else {
-                $data->$name = self::traverseFieldDescriptor($data->$name, $field);
+                if ($field->message) {
+                    self::traverseDescriptor($data->$name, $field->message);
+                }
+                if ($field->enums) {
+                    $data->$name = $field->enums[$data->$name] ?? $data->$name;
+                }
             }
         }
     }
 
-    private static function traverseFieldDescriptor(mixed $data, FieldDescriptor $field): mixed {
-        switch ($field->getType()) {
-            case GPBType::MESSAGE:
-                self::traverseDescriptor($data, $field->getMessageType());
-                break;
-            case GPBType::ENUM:
-                $enum = $field->getEnumType();
-                for ($i = 0, $n = $enum->getValueCount(); $i < $n; $i++) {
-                    if ($data === $enum->getValue($i)->getName()) {
-                        return $enum->getValue($i)->getNumber();
-                    }
-                }
-                break;
+    /**
+     * @param class-string $class
+     * @return array<string, object{
+     *     message: ?class-string,
+     *     enums: ?array,
+     *     repeated: bool,
+     * }>
+     */
+    private static function fields(string $class): array {
+        static $cache = [];
+        if ($fields = $cache[$class] ?? null) {
+            return $fields;
+        }
+        if (!$desc = DescriptorPool::getGeneratedPool()->getDescriptorByClassName($class)) {
+            return [];
         }
 
-        return $data;
+        $fields = [];
+        for ($i = 0, $n = $desc->getFieldCount(); $i < $n; $i++) {
+            $field = $desc->getField($i);
+            $type = $field->getType();
+            if ($type !== GPBType::MESSAGE && $type !== GPBType::ENUM) {
+                continue;
+            }
+
+            $fieldDescriptor = new class {
+                public ?string $message = null;
+                public ?array $enums = null;
+                public bool $repeated;
+            };
+
+            if ($type === GPBType::MESSAGE) {
+                $fieldDescriptor->message = $field->getMessageType()->getClass();
+            }
+            if ($type === GPBType::ENUM) {
+                $enum = $field->getEnumType();
+                $fieldDescriptor->enums = [];
+                for ($e = 0, $m = $enum->getValueCount(); $e < $m; $e++) {
+                    $value = $enum->getValue($e);
+                    $fieldDescriptor->enums[$value->getName()] = $value->getNumber();
+                }
+            }
+            $fieldDescriptor->repeated = $field->getLabel() === GPBLabel::REPEATED;
+
+            $name = lcfirst(strtr(ucwords($field->getName(), '_'), ['_' => '']));
+            $fields[$name] = $fieldDescriptor;
+        }
+
+        return $cache[$class] = $fields;
     }
 }
