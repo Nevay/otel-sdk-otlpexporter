@@ -1,0 +1,29 @@
+{
+    "name": "tbachert/otel-sdk-otlpexporter",
+    "description": "OpenTelemetry SDK OTLP exporters",
+    "keywords": ["opentelemetry", "otel", "sdk"],
+    "require": {
+        "php-64bit": "^8.1",
+        "amphp/amp": "^3.0",
+        "amphp/byte-stream": "^2.0",
+        "amphp/http-client": "^5.0",
+        "open-telemetry/api": "^1.0",
+        "open-telemetry/gen-otlp-protobuf": "^1.0",
+        "revolt/event-loop": "^1.0",
+        "tbachert/otel-async-revolt-adapter": "^0.1",
+        "tbachert/otel-sdk-common": "^0.1",
+        "tbachert/otel-sdk-logs": "^0.1",
+        "tbachert/otel-sdk-metrics": "^0.1",
+        "tbachert/otel-sdk-trace": "^0.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Nevay\\OtelSDK\\Otlp\\": ""
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.1.x-dev"
+        }
+    }
+}
