@@ -7,6 +7,7 @@
         "amphp/amp": "^3.0",
         "amphp/byte-stream": "^2.0",
         "amphp/http-client": "^5.0",
+        "google/protobuf": "^3.4",
         "open-telemetry/api": "^1.0",
         "open-telemetry/gen-otlp-protobuf": "^1.0",
         "revolt/event-loop": "^1.0",
