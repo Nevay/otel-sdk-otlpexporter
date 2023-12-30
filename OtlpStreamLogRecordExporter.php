@@ -2,30 +2,29 @@
 namespace Nevay\OtelSDK\Otlp;
 
 use Amp\ByteStream\WritableStream;
-use Amp\Cancellation;
-use Amp\Future;
 use Nevay\OtelSDK\Logs\LogRecordExporter;
+use Nevay\OtelSDK\Logs\ReadableLogRecord;
 use Nevay\OtelSDK\Otlp\Internal\LogRecordConverter;
 use Nevay\OtelSDK\Otlp\Internal\OtlpStreamExporter;
+use Nevay\OtelSDK\Otlp\Internal\RequestPayload;
+use Opentelemetry\Proto\Collector\Logs\V1\ExportLogsServiceRequest;
 use Psr\Log\LoggerInterface;
 
-final class OtlpStreamLogRecordExporter implements LogRecordExporter {
-
-    private readonly OtlpStreamExporter $exporter;
+/**
+ * @implements OtlpStreamExporter<ReadableLogRecord, ExportLogsServiceRequest>
+ */
+final class OtlpStreamLogRecordExporter extends OtlpStreamExporter implements LogRecordExporter {
 
     public function __construct(WritableStream $stream, ?LoggerInterface $logger = null) {
-        $this->exporter = new OtlpStreamExporter($stream, $logger);
+        parent::__construct($stream, $logger);
     }
 
-    public function export(iterable $batch, ?Cancellation $cancellation = null): Future {
-        return $this->exporter->export($batch, LogRecordConverter::convert(...));
-    }
+    protected function convertPayload(iterable $batch, ProtobufFormat $format): RequestPayload {
+        $message = LogRecordConverter::convert($batch, $format);
 
-    public function shutdown(?Cancellation $cancellation = null): bool {
-        return $this->exporter->shutdown($cancellation);
-    }
-
-    public function forceFlush(?Cancellation $cancellation = null): bool {
-        return $this->exporter->forceFlush($cancellation);
+        return new RequestPayload(
+            $message,
+            $message->getResourceLogs()->count(),
+        );
     }
 }

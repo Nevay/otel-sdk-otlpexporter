@@ -13,7 +13,6 @@ use Amp\Http\Client\Response;
 use Amp\Http\Client\SocketException;
 use Amp\Http\Http2\Http2ConnectionException;
 use Amp\TimeoutCancellation;
-use Closure;
 use Google\Protobuf\Internal\Message;
 use InvalidArgumentException;
 use JetBrains\PhpStorm\ExpectedValues;
@@ -34,8 +33,12 @@ use function trim;
 
 /**
  * @internal
+ *
+ * @template T
+ * @template P of Message
+ * @template R of Message
  */
-final class OtlpHttpExporter {
+abstract class OtlpHttpExporter {
 
     private readonly HttpClient $client;
     private readonly UriInterface $endpoint;
@@ -51,10 +54,16 @@ final class OtlpHttpExporter {
     /** @var array<int, Future> */
     private array $pending = [];
 
+    private readonly string $responseClass;
+
     private DeferredCancellation $shutdown;
     private bool $closed = false;
 
+    /**
+     * @param string<R> $responseClass
+     */
     public function __construct(
+        string $responseClass,
         HttpClient $client,
         UriInterface $endpoint,
         ProtobufFormat $format = ProtobufFormat::PROTOBUF,
@@ -76,6 +85,7 @@ final class OtlpHttpExporter {
             throw new InvalidArgumentException(sprintf('Maximum retry count (%d) must be greater than or equal to zero', $maxRetries));
         }
 
+        $this->responseClass = $responseClass;
         $this->client = $client;
         $this->endpoint = $endpoint;
         $this->format = $format;
@@ -89,28 +99,37 @@ final class OtlpHttpExporter {
     }
 
     /**
-     * @template T
-     * @template R of Message
-     * @param list<T> $batch
-     * @param Closure(T, ProtobufFormat, ?LoggerInterface): ?Message $convert
-     * @param Closure(R, ?LoggerInterface): bool $process
-     * @param class-string<R> $class
+     * @param iterable<T> $batch
+     * @param ProtobufFormat $format
+     * @return RequestPayload<P>
+     */
+    protected abstract function convertPayload(iterable $batch, ProtobufFormat $format): RequestPayload;
+
+    /**
+     * @param R $message
+     */
+    protected abstract function convertResponse(Message $message): ?PartialSuccess;
+
+    /**
+     * @param iterable<T> $batch
      * @return Future<bool>
      */
-    public function export(iterable $batch, ?Cancellation $cancellation, Closure $convert, Closure $process, string $class): Future {
+    public function export(iterable $batch, ?Cancellation $cancellation = null): Future {
         if ($this->closed) {
             return Future::complete(false);
         }
-        if (!$message = $convert($batch, $this->format, $this->logger)) {
+
+        $payload = $this->convertPayload($batch, $this->format);
+        if (!$payload->items) {
             return Future::complete(true);
         }
 
-        $request = $this->prepareRequest($message);
+        $request = $this->prepareRequest($payload->message);
         $cancellation = $this->cancellation($cancellation);
 
-        $future = async($this->sendRequest(...), $request, $cancellation);
-        $future = $future->map(fn(Response $response): bool => $process($this->mapResponse($response, $class), $this->logger));
-        $future = $future->catch($this->logException(...));
+        $future = async($this->sendRequest(...), $request, $cancellation)
+            ->map($this->mapResponse(...))
+            ->catch($this->logException(...));
 
         $id = array_key_last($this->pending) + 1;
         $this->pending[$id] = $future->finally(function() use ($id): void {
@@ -150,16 +169,24 @@ final class OtlpHttpExporter {
         return false;
     }
 
-    /**
-     * @template T of Message
-     * @param class-string<T> $class
-     * @return Message
-     */
-    private function mapResponse(Response $response, string $class): Message {
-        $message = new $class;
+    private function mapResponse(Response $response): bool {
+        $message = new $this->responseClass;
         Serializer::hydrate($message, $response->getBody()->buffer(), $this->format);
 
-        return $message;
+        $partialSuccess = $this->convertResponse($message);
+        if ($partialSuccess?->rejectedItems) {
+            $this->logger?->error('Export partial success', [
+                'rejected_items' => $partialSuccess->rejectedItems,
+                'error_message' => $partialSuccess->errorMessage,
+            ]);
+        }
+        if ($partialSuccess?->errorMessage) {
+            $this->logger?->warning('Export success with warnings/suggestions', [
+                'error_message' => $partialSuccess->errorMessage
+            ]);
+        }
+
+        return true;
     }
 
     private function prepareRequest(Message $message): Request {

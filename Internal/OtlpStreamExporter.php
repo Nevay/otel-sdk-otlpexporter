@@ -4,14 +4,19 @@ namespace Nevay\OtelSDK\Otlp\Internal;
 use Amp\ByteStream\WritableStream;
 use Amp\Cancellation;
 use Amp\Future;
-use Closure;
 use Google\Protobuf\Internal\Message;
 use Nevay\OtelSDK\Otlp\ProtobufFormat;
 use Psr\Log\LoggerInterface;
 use Throwable;
 use function Amp\async;
 
-final class OtlpStreamExporter {
+/**
+ * @internal
+ *
+ * @template T
+ * @template P of Message
+ */
+abstract class OtlpStreamExporter {
 
     private readonly ProtobufFormat $format;
     private ?WritableStream $stream;
@@ -25,22 +30,31 @@ final class OtlpStreamExporter {
     }
 
     /**
-     * @template T
      * @param iterable<T> $batch
-     * @param Closure(iterable<T>, ProtobufFormat, ?LoggerInterface): ?Message $convert
-     * @return Future<bool>
+     * @param ProtobufFormat $format
+     * @return RequestPayload<P>
      */
-    public function export(iterable $batch, Closure $convert): Future {
+    protected abstract function convertPayload(iterable $batch, ProtobufFormat $format): RequestPayload;
+
+    /**
+     * @param iterable<T> $batch
+     * @return Future<bool>
+     *
+     * @noinspection PhpUnusedParameterInspection
+     */
+    public function export(iterable $batch, ?Cancellation $cancellation = null): Future {
         if (!$stream = $this->stream) {
             return Future::complete(false);
         }
-        if (!$message = $convert($batch, $this->format, $this->logger)) {
+
+        $payload = $this->convertPayload($batch, $this->format);
+        if (!$payload->items) {
             return Future::complete(true);
         }
 
-        $payload = Serializer::serialize($message, $this->format) . "\n";
+        $payload = Serializer::serialize($payload->message, $this->format) . "\n";
         $future = async($stream->write(...), $payload)
-            ->map(static fn() => true)
+            ->map(static fn(): bool => true)
             ->catch($this->logException(...));
 
         return $this->write = $future;

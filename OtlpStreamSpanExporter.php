@@ -2,30 +2,29 @@
 namespace Nevay\OtelSDK\Otlp;
 
 use Amp\ByteStream\WritableStream;
-use Amp\Cancellation;
-use Amp\Future;
 use Nevay\OtelSDK\Otlp\Internal\OtlpStreamExporter;
+use Nevay\OtelSDK\Otlp\Internal\RequestPayload;
 use Nevay\OtelSDK\Otlp\Internal\SpanConverter;
+use Nevay\OtelSDK\Trace\ReadableSpan;
 use Nevay\OtelSDK\Trace\SpanExporter;
+use Opentelemetry\Proto\Collector\Trace\V1\ExportTraceServiceRequest;
 use Psr\Log\LoggerInterface;
 
-final class OtlpStreamSpanExporter implements SpanExporter {
-
-    private readonly OtlpStreamExporter $exporter;
+/**
+ * @implements OtlpStreamExporter<ReadableSpan, ExportTraceServiceRequest>
+ */
+final class OtlpStreamSpanExporter extends OtlpStreamExporter implements SpanExporter {
 
     public function __construct(WritableStream $stream, ?LoggerInterface $logger = null) {
-        $this->exporter = new OtlpStreamExporter($stream, $logger);
+        parent::__construct($stream, $logger);
     }
 
-    public function export(iterable $batch, ?Cancellation $cancellation = null): Future {
-        return $this->exporter->export($batch, SpanConverter::convert(...));
-    }
+    protected function convertPayload(iterable $batch, ProtobufFormat $format): RequestPayload {
+        $message = SpanConverter::convert($batch, $format);
 
-    public function shutdown(?Cancellation $cancellation = null): bool {
-        return $this->exporter->shutdown($cancellation);
-    }
-
-    public function forceFlush(?Cancellation $cancellation = null): bool {
-        return $this->exporter->forceFlush($cancellation);
+        return new RequestPayload(
+            $message,
+            $message->getResourceSpans()->count(),
+        );
     }
 }

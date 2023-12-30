@@ -1,20 +1,24 @@
 <?php declare(strict_types=1);
 namespace Nevay\OtelSDK\Otlp;
 
-use Amp\Cancellation;
-use Amp\Future;
 use Amp\Http\Client\HttpClient;
+use Google\Protobuf\Internal\Message;
 use JetBrains\PhpStorm\ExpectedValues;
+use Nevay\OtelSDK\Metrics\Data\Metric;
 use Nevay\OtelSDK\Metrics\MetricExporter;
 use Nevay\OtelSDK\Otlp\Internal\MetricConverter;
 use Nevay\OtelSDK\Otlp\Internal\OtlpHttpExporter;
+use Nevay\OtelSDK\Otlp\Internal\PartialSuccess;
+use Nevay\OtelSDK\Otlp\Internal\RequestPayload;
+use Opentelemetry\Proto\Collector\Metrics\V1\ExportMetricsServiceRequest;
 use Opentelemetry\Proto\Collector\Metrics\V1\ExportMetricsServiceResponse;
 use Psr\Http\Message\UriInterface;
 use Psr\Log\LoggerInterface;
 
-final class OtlpHttpMetricExporter implements MetricExporter {
-
-    private readonly OtlpHttpExporter $exporter;
+/**
+ * @implements OtlpHttpExporter<Metric, ExportMetricsServiceRequest, ExportMetricsServiceResponse>
+ */
+final class OtlpHttpMetricExporter extends OtlpHttpExporter implements MetricExporter {
 
     public function __construct(
         HttpClient $client,
@@ -28,7 +32,8 @@ final class OtlpHttpMetricExporter implements MetricExporter {
         int $maxRetries = 5,
         ?LoggerInterface $logger = null,
     ) {
-        $this->exporter = new OtlpHttpExporter(
+        parent::__construct(
+            ExportMetricsServiceResponse::class,
             $client,
             $endpoint,
             $format,
@@ -41,34 +46,23 @@ final class OtlpHttpMetricExporter implements MetricExporter {
         );
     }
 
-    public function export(iterable $batch, ?Cancellation $cancellation = null): Future {
-        return $this->exporter->export($batch, $cancellation, MetricConverter::convert(...), self::processResponse(...), ExportMetricsServiceResponse::class);
+    protected function convertPayload(iterable $batch, ProtobufFormat $format): RequestPayload {
+        $message = MetricConverter::convert($batch, $format);
+
+        return new RequestPayload(
+            $message,
+            $message->getResourceMetrics()->count(),
+        );
     }
 
-    public function shutdown(?Cancellation $cancellation = null): bool {
-        return $this->exporter->shutdown($cancellation);
-    }
-
-    public function forceFlush(?Cancellation $cancellation = null): bool {
-        return $this->exporter->forceFlush($cancellation);
-    }
-
-    private static function processResponse(ExportMetricsServiceResponse $message, ?LoggerInterface $logger): bool {
-        $partialSuccess = $message->getPartialSuccess();
-        if ($partialSuccess?->getRejectedDataPoints()) {
-            $logger?->error('Export partial success', [
-                'rejected_data_points' => $partialSuccess->getRejectedDataPoints(),
-                'error_message' => $partialSuccess->getErrorMessage(),
-            ]);
-            return false;
+    protected function convertResponse(Message $message): ?PartialSuccess {
+        if (!$partialSuccess = $message->getPartialSuccess()) {
+            return null;
         }
 
-        if ($partialSuccess?->getErrorMessage()) {
-            $logger?->warning('Export success with warnings/suggestions', [
-                'error_message' => $partialSuccess->getErrorMessage(),
-            ]);
-        }
-
-        return true;
+        return new PartialSuccess(
+            $partialSuccess->getErrorMessage(),
+            $partialSuccess->getRejectedDataPoints(),
+        );
     }
 }
