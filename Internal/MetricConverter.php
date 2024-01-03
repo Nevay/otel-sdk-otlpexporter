@@ -158,9 +158,15 @@ final class MetricConverter {
         $pHistogramDataPoint->setStartTimeUnixNano($dataPoint->startTimestamp);
         $pHistogramDataPoint->setTimeUnixNano($dataPoint->timestamp);
         $pHistogramDataPoint->setCount($dataPoint->count);
-        $pHistogramDataPoint->setSum($dataPoint->sum);
-        $pHistogramDataPoint->setMin($dataPoint->min);
-        $pHistogramDataPoint->setMax($dataPoint->max);
+        if ($dataPoint->sum !== null) {
+            $pHistogramDataPoint->setSum($dataPoint->sum);
+        }
+        if ($dataPoint->min !== null) {
+            $pHistogramDataPoint->setMin($dataPoint->min);
+        }
+        if ($dataPoint->max !== null) {
+            $pHistogramDataPoint->setMax($dataPoint->max);
+        }
         $pHistogramDataPoint->setBucketCounts($dataPoint->bucketCounts);
         $pHistogramDataPoint->setExplicitBounds($dataPoint->explicitBounds);
         foreach ($dataPoint->exemplars as $exemplar) {
