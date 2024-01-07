@@ -4,8 +4,18 @@ namespace Nevay\OtelSDK\Otlp;
 use Amp\Http\Client\HttpClient;
 use Google\Protobuf\Internal\Message;
 use JetBrains\PhpStorm\ExpectedValues;
+use Nevay\OtelSDK\Metrics\Aggregation;
+use Nevay\OtelSDK\Metrics\AggregationResolver;
+use Nevay\OtelSDK\Metrics\AggregationResolvers;
+use Nevay\OtelSDK\Metrics\CardinalityLimitResolver;
+use Nevay\OtelSDK\Metrics\CardinalityLimitResolvers;
+use Nevay\OtelSDK\Metrics\Data\Descriptor;
 use Nevay\OtelSDK\Metrics\Data\Metric;
+use Nevay\OtelSDK\Metrics\Data\Temporality;
+use Nevay\OtelSDK\Metrics\InstrumentType;
 use Nevay\OtelSDK\Metrics\MetricExporter;
+use Nevay\OtelSDK\Metrics\TemporalityResolver;
+use Nevay\OtelSDK\Metrics\TemporalityResolvers;
 use Nevay\OtelSDK\Otlp\Internal\MetricConverter;
 use Nevay\OtelSDK\Otlp\Internal\OtlpHttpExporter;
 use Nevay\OtelSDK\Otlp\Internal\PartialSuccess;
@@ -30,6 +40,9 @@ final class OtlpHttpMetricExporter extends OtlpHttpExporter implements MetricExp
         float $timeout = 10.,
         int $retryDelay = 5000,
         int $maxRetries = 5,
+        private readonly TemporalityResolver $temporalityResolver = TemporalityResolvers::LowMemory,
+        private readonly AggregationResolver $aggregationResolver = AggregationResolvers::Default,
+        private readonly CardinalityLimitResolver $cardinalityLimitResolver = CardinalityLimitResolvers::Default,
         ?LoggerInterface $logger = null,
     ) {
         parent::__construct(
@@ -64,5 +77,17 @@ final class OtlpHttpMetricExporter extends OtlpHttpExporter implements MetricExp
             $partialSuccess->getErrorMessage(),
             $partialSuccess->getRejectedDataPoints(),
         );
+    }
+
+    public function resolveTemporality(Descriptor $descriptor): ?Temporality {
+        return $this->temporalityResolver->resolveTemporality($descriptor);
+    }
+
+    public function resolveAggregation(InstrumentType $instrumentType, array $advisory = []): ?Aggregation {
+        return $this->aggregationResolver->resolveAggregation($instrumentType, $advisory);
+    }
+
+    public function resolveCardinalityLimit(InstrumentType $instrumentType): ?int {
+        return $this->cardinalityLimitResolver->resolveCardinalityLimit($instrumentType);
     }
 }
