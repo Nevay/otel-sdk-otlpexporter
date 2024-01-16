@@ -13,6 +13,7 @@ use Amp\Http\Client\Response;
 use Amp\Http\Client\SocketException;
 use Amp\Http\Http2\Http2ConnectionException;
 use Amp\TimeoutCancellation;
+use Composer\InstalledVersions;
 use Google\Protobuf\Internal\Message;
 use InvalidArgumentException;
 use JetBrains\PhpStorm\ExpectedValues;
@@ -192,6 +193,7 @@ abstract class OtlpHttpExporter {
     private function prepareRequest(Message $message): Request {
         $payload = Serializer::serialize($message, $this->format);
         $request = new Request($this->endpoint, 'POST');
+        $request->setHeader('user-agent', self::userAgent());
         $request->setHeader('content-type', Serializer::contentType($this->format));
         if ($this->compression === 'gzip' && extension_loaded('zlib')) {
             $payload = \gzencode($payload);
@@ -265,5 +267,9 @@ abstract class OtlpHttpExporter {
                 $this->shutdown->getCancellation(),
             )
             : $this->shutdown->getCancellation();
+    }
+
+    private static function userAgent(): string {
+        return 'TBachert OTLP Exporter PHP/' . InstalledVersions::getPrettyVersion('tbachert/otel-sdk-otlpexporter');
     }
 }
