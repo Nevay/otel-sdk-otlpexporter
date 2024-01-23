@@ -1,15 +1,15 @@
 <?php declare(strict_types=1);
-namespace Nevay\OtelSDK\Otlp;
+namespace Nevay\OTelSDK\Otlp;
 
 use Amp\Http\Client\HttpClient;
 use Google\Protobuf\Internal\Message;
 use JetBrains\PhpStorm\ExpectedValues;
-use Nevay\OtelSDK\Logs\LogRecordExporter;
-use Nevay\OtelSDK\Logs\ReadableLogRecord;
-use Nevay\OtelSDK\Otlp\Internal\LogRecordConverter;
-use Nevay\OtelSDK\Otlp\Internal\OtlpHttpExporter;
-use Nevay\OtelSDK\Otlp\Internal\PartialSuccess;
-use Nevay\OtelSDK\Otlp\Internal\RequestPayload;
+use Nevay\OTelSDK\Logs\LogRecordExporter;
+use Nevay\OTelSDK\Logs\ReadableLogRecord;
+use Nevay\OTelSDK\Otlp\Internal\LogRecordConverter;
+use Nevay\OTelSDK\Otlp\Internal\OtlpHttpExporter;
+use Nevay\OTelSDK\Otlp\Internal\PartialSuccess;
+use Nevay\OTelSDK\Otlp\Internal\RequestPayload;
 use Opentelemetry\Proto\Collector\Logs\V1\ExportLogsServiceRequest;
 use Opentelemetry\Proto\Collector\Logs\V1\ExportLogsServiceResponse;
 use Psr\Http\Message\UriInterface;

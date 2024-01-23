@@ -1,12 +1,12 @@
 <?php declare(strict_types=1);
-namespace Nevay\OtelSDK\Otlp;
+namespace Nevay\OTelSDK\Otlp;
 
 use Amp\ByteStream\WritableStream;
-use Nevay\OtelSDK\Logs\LogRecordExporter;
-use Nevay\OtelSDK\Logs\ReadableLogRecord;
-use Nevay\OtelSDK\Otlp\Internal\LogRecordConverter;
-use Nevay\OtelSDK\Otlp\Internal\OtlpStreamExporter;
-use Nevay\OtelSDK\Otlp\Internal\RequestPayload;
+use Nevay\OTelSDK\Logs\LogRecordExporter;
+use Nevay\OTelSDK\Logs\ReadableLogRecord;
+use Nevay\OTelSDK\Otlp\Internal\LogRecordConverter;
+use Nevay\OTelSDK\Otlp\Internal\OtlpStreamExporter;
+use Nevay\OTelSDK\Otlp\Internal\RequestPayload;
 use Opentelemetry\Proto\Collector\Logs\V1\ExportLogsServiceRequest;
 use Psr\Log\LoggerInterface;
 

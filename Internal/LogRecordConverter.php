@@ -1,10 +1,10 @@
 <?php declare(strict_types=1);
-namespace Nevay\OtelSDK\Otlp\Internal;
+namespace Nevay\OTelSDK\Otlp\Internal;
 
-use Nevay\OtelSDK\Common\InstrumentationScope;
-use Nevay\OtelSDK\Common\Resource;
-use Nevay\OtelSDK\Logs\ReadableLogRecord;
-use Nevay\OtelSDK\Otlp\ProtobufFormat;
+use Nevay\OTelSDK\Common\InstrumentationScope;
+use Nevay\OTelSDK\Common\Resource;
+use Nevay\OTelSDK\Logs\ReadableLogRecord;
+use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use Opentelemetry\Proto;
 use Opentelemetry\Proto\Collector\Logs\V1\ExportLogsServiceRequest;
 use function spl_object_id;

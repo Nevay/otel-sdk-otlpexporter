@@ -1,9 +1,9 @@
 <?php declare(strict_types=1);
-namespace Nevay\OtelSDK\Otlp\Internal;
+namespace Nevay\OTelSDK\Otlp\Internal;
 
-use Nevay\OtelSDK\Common\InstrumentationScope;
-use Nevay\OtelSDK\Common\Resource;
-use Nevay\OtelSDK\Otlp\ProtobufFormat;
+use Nevay\OTelSDK\Common\InstrumentationScope;
+use Nevay\OTelSDK\Common\Resource;
+use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use OpenTelemetry\API\Trace\SpanContextInterface;
 use Opentelemetry\Proto;
 use WeakMap;

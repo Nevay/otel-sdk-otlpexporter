@@ -1,5 +1,5 @@
 <?php declare(strict_types=1);
-namespace Nevay\OtelSDK\Otlp\Internal;
+namespace Nevay\OTelSDK\Otlp\Internal;
 
 /**
  * @internal

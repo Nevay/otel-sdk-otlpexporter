@@ -1,11 +1,11 @@
 <?php declare(strict_types=1);
-namespace Nevay\OtelSDK\Otlp\Internal;
+namespace Nevay\OTelSDK\Otlp\Internal;
 
 use Amp\ByteStream\WritableStream;
 use Amp\Cancellation;
 use Amp\Future;
 use Google\Protobuf\Internal\Message;
-use Nevay\OtelSDK\Otlp\ProtobufFormat;
+use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use Psr\Log\LoggerInterface;
 use Throwable;
 use function Amp\async;

@@ -19,7 +19,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Nevay\\OtelSDK\\Otlp\\": ""
+            "Nevay\\OTelSDK\\Otlp\\": ""
         }
     },
     "extra": {

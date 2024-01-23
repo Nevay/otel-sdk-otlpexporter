@@ -1,5 +1,5 @@
 <?php declare(strict_types=1);
-namespace Nevay\OtelSDK\Otlp;
+namespace Nevay\OTelSDK\Otlp;
 
 enum ProtobufFormat {
 

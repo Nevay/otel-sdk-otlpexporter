@@ -1,11 +1,11 @@
 <?php declare(strict_types=1);
-namespace Nevay\OtelSDK\Otlp\Internal;
+namespace Nevay\OTelSDK\Otlp\Internal;
 
 use Google\Protobuf\DescriptorPool;
 use Google\Protobuf\Internal\GPBLabel;
 use Google\Protobuf\Internal\GPBType;
 use Google\Protobuf\Internal\Message;
-use Nevay\OtelSDK\Otlp\ProtobufFormat;
+use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use function json_decode;
 use function json_encode;
 use function lcfirst;

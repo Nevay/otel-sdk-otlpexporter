@@ -1,12 +1,12 @@
 <?php declare(strict_types=1);
-namespace Nevay\OtelSDK\Otlp\Internal;
+namespace Nevay\OTelSDK\Otlp\Internal;
 
-use Nevay\OtelSDK\Common\InstrumentationScope;
-use Nevay\OtelSDK\Common\Resource;
-use Nevay\OtelSDK\Otlp\ProtobufFormat;
-use Nevay\OtelSDK\Trace\ReadableSpan;
-use Nevay\OtelSDK\Trace\Span\Kind;
-use Nevay\OtelSDK\Trace\Span\Status;
+use Nevay\OTelSDK\Common\InstrumentationScope;
+use Nevay\OTelSDK\Common\Resource;
+use Nevay\OTelSDK\Otlp\ProtobufFormat;
+use Nevay\OTelSDK\Trace\ReadableSpan;
+use Nevay\OTelSDK\Trace\Span\Kind;
+use Nevay\OTelSDK\Trace\Span\Status;
 use Opentelemetry\Proto;
 use Opentelemetry\Proto\Collector\Trace\V1\ExportTraceServiceRequest;
 use function spl_object_id;

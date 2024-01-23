@@ -1,5 +1,5 @@
 <?php declare(strict_types=1);
-namespace Nevay\OtelSDK\Otlp\Internal;
+namespace Nevay\OTelSDK\Otlp\Internal;
 
 use Amp\Cancellation;
 use Amp\CancelledException;
@@ -17,7 +17,7 @@ use Composer\InstalledVersions;
 use Google\Protobuf\Internal\Message;
 use InvalidArgumentException;
 use JetBrains\PhpStorm\ExpectedValues;
-use Nevay\OtelSDK\Otlp\ProtobufFormat;
+use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use Psr\Http\Message\UriInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
