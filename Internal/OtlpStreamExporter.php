@@ -7,7 +7,6 @@ use Amp\Future;
 use Google\Protobuf\Internal\Message;
 use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use Psr\Log\LoggerInterface;
-use Throwable;
 use function Amp\async;
 
 /**
@@ -20,13 +19,11 @@ abstract class OtlpStreamExporter {
 
     private readonly ProtobufFormat $format;
     private ?WritableStream $stream;
-    private ?LoggerInterface $logger;
     private ?Future $write = null;
 
     public function __construct(WritableStream $stream, ?LoggerInterface $logger = null) {
         $this->format = ProtobufFormat::JSON;
         $this->stream = $stream;
-        $this->logger = $logger;
     }
 
     /**
@@ -54,8 +51,7 @@ abstract class OtlpStreamExporter {
 
         $payload = Serializer::serialize($payload->message, $this->format) . "\n";
         $future = async($stream->write(...), $payload)
-            ->map(static fn(): bool => true)
-            ->catch($this->logException(...));
+            ->map(static fn(): bool => true);
 
         return $this->write = $future;
     }
@@ -79,11 +75,5 @@ abstract class OtlpStreamExporter {
         $this->write?->await($cancellation);
 
         return true;
-    }
-
-    private function logException(Throwable $e): bool {
-        $this->logger?->error('Export failure {exception}', ['exception' => $e]);
-
-        return false;
     }
 }

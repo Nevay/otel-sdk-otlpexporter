@@ -17,10 +17,10 @@ use Composer\InstalledVersions;
 use Google\Protobuf\Internal\Message;
 use InvalidArgumentException;
 use JetBrains\PhpStorm\ExpectedValues;
+use Nevay\OTelSDK\Common\Internal\Export\Exception\TransientExportException;
 use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use Psr\Http\Message\UriInterface;
 use Psr\Log\LoggerInterface;
-use Throwable;
 use function Amp\async;
 use function Amp\delay;
 use function array_key_last;
@@ -129,8 +129,7 @@ abstract class OtlpHttpExporter {
         $cancellation = $this->cancellation($cancellation);
 
         $future = async($this->sendRequest(...), $request, $cancellation)
-            ->map($this->mapResponse(...))
-            ->catch($this->logException(...));
+            ->map($this->mapResponse(...));
 
         $id = array_key_last($this->pending) + 1;
         $this->pending[$id] = $future->finally(function() use ($id): void {
@@ -162,12 +161,6 @@ abstract class OtlpHttpExporter {
         foreach (Future::iterate($this->pending, $cancellation) as $ignored) {}
 
         return true;
-    }
-
-    private function logException(Throwable $e): bool {
-        $this->logger?->error('Export failure {exception}', ['exception' => $e]);
-
-        return false;
     }
 
     private function mapResponse(Response $response): bool {
@@ -231,7 +224,7 @@ abstract class OtlpHttpExporter {
             }
 
             if (++$retries === $this->maxRetries) {
-                throw new HttpException('Too many retries', 0, $e);
+                throw new TransientExportException('Too many retries', 0, $e);
             }
 
             $delay = $this->retryDelay << $retries - 1;

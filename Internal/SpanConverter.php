@@ -64,6 +64,7 @@ final class SpanConverter {
         $pSpan = new Proto\Trace\V1\Span();
         $pSpan->setTraceId(Converter::traceId($span->getContext(), $format));
         $pSpan->setSpanId(Converter::spanId($span->getContext(), $format));
+        $pSpan->setFlags($span->getContext()->getTraceFlags());
         $pSpan->setTraceState((string) $span->getContext()->getTraceState());
         if ($span->getParentContext()) {
             $pSpan->setParentSpanId(Converter::spanId($span->getParentContext(), $format));
@@ -102,6 +103,7 @@ final class SpanConverter {
             $pSpan->getLinks()[] = $pLink = new Proto\Trace\V1\Span\Link();
             $pLink->setTraceId(Converter::traceId($link->spanContext, $format));
             $pLink->setSpanId(Converter::spanId($link->spanContext, $format));
+            $pLink->setFlags($link->spanContext->getTraceFlags());
             $pLink->setTraceState((string) $link->spanContext->getTraceState());
             foreach ($link->attributes as $key => $value) {
                 $pLink->getAttributes()[] = (new Proto\Common\V1\KeyValue())
