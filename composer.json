@@ -2,6 +2,7 @@
     "name": "tbachert/otel-sdk-otlpexporter",
     "description": "OpenTelemetry SDK OTLP exporters",
     "keywords": ["opentelemetry", "otel", "sdk"],
+    "license": "Apache-2.0",
     "require": {
         "php-64bit": "^8.1",
         "amphp/amp": "^3.0",
