@@ -49,6 +49,7 @@ abstract class OtlpStreamExporter {
             return Future::complete(true);
         }
 
+        unset($batch);
         $payload = Serializer::serialize($payload->message, $this->format) . "\n";
         $future = async($stream->write(...), $payload)
             ->map(static fn(): bool => true);

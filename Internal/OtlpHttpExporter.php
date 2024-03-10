@@ -125,6 +125,7 @@ abstract class OtlpHttpExporter {
             return Future::complete(true);
         }
 
+        unset($batch);
         $request = $this->prepareRequest($payload->message);
         $cancellation = $this->cancellation($cancellation);
 
