@@ -74,7 +74,7 @@ final class Converter {
     private static function isUtf8(string $value): bool {
         return extension_loaded('mbstring')
             ? \mb_check_encoding($value, 'UTF-8')
-            : !preg_match('//u', $value);
+            : (bool) preg_match('//u', $value);
     }
 
     private static function convertArrayValue(iterable $value): Proto\Common\V1\ArrayValue {
