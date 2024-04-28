@@ -18,6 +18,7 @@ use Google\Protobuf\Internal\Message;
 use InvalidArgumentException;
 use JetBrains\PhpStorm\ExpectedValues;
 use Nevay\OTelSDK\Common\Internal\Export\Exception\TransientExportException;
+use Nevay\OTelSDK\Common\Internal\Export\Exporter;
 use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use Psr\Http\Message\UriInterface;
 use Psr\Log\LoggerInterface;
@@ -38,8 +39,9 @@ use function trim;
  * @template T
  * @template P of Message
  * @template R of Message
+ * @implements Exporter<T>
  */
-abstract class OtlpHttpExporter {
+abstract class OtlpHttpExporter implements Exporter {
 
     private readonly HttpClient $client;
     private readonly UriInterface $endpoint;

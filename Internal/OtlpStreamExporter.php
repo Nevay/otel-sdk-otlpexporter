@@ -5,6 +5,7 @@ use Amp\ByteStream\WritableStream;
 use Amp\Cancellation;
 use Amp\Future;
 use Google\Protobuf\Internal\Message;
+use Nevay\OTelSDK\Common\Internal\Export\Exporter;
 use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use Psr\Log\LoggerInterface;
 use function Amp\async;
@@ -14,8 +15,9 @@ use function Amp\async;
  *
  * @template T
  * @template P of Message
+ * @implements Exporter<T>
  */
-abstract class OtlpStreamExporter {
+abstract class OtlpStreamExporter implements Exporter {
 
     private readonly ProtobufFormat $format;
     private ?WritableStream $stream;
@@ -36,8 +38,6 @@ abstract class OtlpStreamExporter {
     /**
      * @param iterable<T> $batch
      * @return Future<bool>
-     *
-     * @noinspection PhpUnusedParameterInspection
      */
     public function export(iterable $batch, ?Cancellation $cancellation = null): Future {
         if (!$stream = $this->stream) {
