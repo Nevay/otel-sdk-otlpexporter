@@ -7,6 +7,7 @@ use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use Nevay\OTelSDK\Trace\ReadableSpan;
 use Nevay\OTelSDK\Trace\Span\Kind;
 use Nevay\OTelSDK\Trace\Span\Status;
+use OpenTelemetry\API\Trace\SpanContextInterface;
 use Opentelemetry\Proto;
 use Opentelemetry\Proto\Collector\Trace\V1\ExportTraceServiceRequest;
 use function spl_object_id;
@@ -64,7 +65,7 @@ final class SpanConverter {
         $pSpan = new Proto\Trace\V1\Span();
         $pSpan->setTraceId(Converter::traceId($span->getContext(), $format));
         $pSpan->setSpanId(Converter::spanId($span->getContext(), $format));
-        $pSpan->setFlags($span->getContext()->getTraceFlags());
+        $pSpan->setFlags(self::flags($span->getContext()));
         $pSpan->setTraceState((string) $span->getContext()->getTraceState());
         if ($span->getParentContext()) {
             $pSpan->setParentSpanId(Converter::spanId($span->getParentContext(), $format));
@@ -103,7 +104,7 @@ final class SpanConverter {
             $pSpan->getLinks()[] = $pLink = new Proto\Trace\V1\Span\Link();
             $pLink->setTraceId(Converter::traceId($link->spanContext, $format));
             $pLink->setSpanId(Converter::spanId($link->spanContext, $format));
-            $pLink->setFlags($link->spanContext->getTraceFlags());
+            $pLink->setFlags(self::flags($link->spanContext));
             $pLink->setTraceState((string) $link->spanContext->getTraceState());
             foreach ($link->attributes as $key => $value) {
                 $pLink->getAttributes()[] = (new Proto\Common\V1\KeyValue())
@@ -126,5 +127,13 @@ final class SpanConverter {
         $pSpan->setStatus($pStatus);
 
         return $pSpan;
+    }
+
+    private static function flags(SpanContextInterface $spanContext): int {
+        $flags = $spanContext->getTraceFlags();
+        $flags |= 1 << 8;
+        $flags |= $spanContext->isRemote() << 9;
+
+        return $flags;
     }
 }
