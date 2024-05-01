@@ -3,8 +3,7 @@ namespace Nevay\OTelSDK\Otlp;
 
 use Amp\ByteStream\WritableStream;
 use Nevay\OTelSDK\Metrics\Aggregation;
-use Nevay\OTelSDK\Metrics\AggregationResolver;
-use Nevay\OTelSDK\Metrics\AggregationResolvers;
+use Nevay\OTelSDK\Metrics\Aggregation\DefaultAggregation;
 use Nevay\OTelSDK\Metrics\CardinalityLimitResolver;
 use Nevay\OTelSDK\Metrics\CardinalityLimitResolvers;
 use Nevay\OTelSDK\Metrics\Data\Descriptor;
@@ -28,7 +27,7 @@ final class OtlpStreamMetricExporter extends OtlpStreamExporter implements Metri
     public function __construct(
         WritableStream $stream,
         private readonly TemporalityResolver $temporalityResolver = TemporalityResolvers::LowMemory,
-        private readonly AggregationResolver $aggregationResolver = AggregationResolvers::Default,
+        private readonly Aggregation $aggregation = new DefaultAggregation(),
         private readonly CardinalityLimitResolver $cardinalityLimitResolver = CardinalityLimitResolvers::Default,
         ?LoggerInterface $logger = null,
     ) {
@@ -48,8 +47,8 @@ final class OtlpStreamMetricExporter extends OtlpStreamExporter implements Metri
         return $this->temporalityResolver->resolveTemporality($descriptor);
     }
 
-    public function resolveAggregation(InstrumentType $instrumentType, array $advisory = []): ?Aggregation {
-        return $this->aggregationResolver->resolveAggregation($instrumentType, $advisory);
+    public function resolveAggregation(InstrumentType $instrumentType): Aggregation {
+        return $this->aggregation;
     }
 
     public function resolveCardinalityLimit(InstrumentType $instrumentType): ?int {
