@@ -13,7 +13,6 @@
         "open-telemetry/gen-otlp-protobuf": "^1.1",
         "psr/log": "^1 || ^2 || ^3",
         "revolt/event-loop": "^1.0",
-        "tbachert/otel-async-revolt-adapter": "^0.1",
         "tbachert/otel-sdk-common": "^0.1",
         "tbachert/otel-sdk-logs": "^0.1",
         "tbachert/otel-sdk-metrics": "^0.1",
