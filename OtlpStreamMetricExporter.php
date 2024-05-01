@@ -5,7 +5,6 @@ use Amp\ByteStream\WritableStream;
 use Nevay\OTelSDK\Metrics\Aggregation;
 use Nevay\OTelSDK\Metrics\Aggregation\DefaultAggregation;
 use Nevay\OTelSDK\Metrics\CardinalityLimitResolver;
-use Nevay\OTelSDK\Metrics\CardinalityLimitResolvers;
 use Nevay\OTelSDK\Metrics\Data\Descriptor;
 use Nevay\OTelSDK\Metrics\Data\Metric;
 use Nevay\OTelSDK\Metrics\Data\Temporality;
@@ -28,7 +27,7 @@ final class OtlpStreamMetricExporter extends OtlpStreamExporter implements Metri
         WritableStream $stream,
         private readonly TemporalityResolver $temporalityResolver = TemporalityResolvers::LowMemory,
         private readonly Aggregation $aggregation = new DefaultAggregation(),
-        private readonly CardinalityLimitResolver $cardinalityLimitResolver = CardinalityLimitResolvers::Default,
+        private readonly ?CardinalityLimitResolver $cardinalityLimitResolver = null,
         ?LoggerInterface $logger = null,
     ) {
         parent::__construct($stream, $logger);
@@ -52,6 +51,6 @@ final class OtlpStreamMetricExporter extends OtlpStreamExporter implements Metri
     }
 
     public function resolveCardinalityLimit(InstrumentType $instrumentType): ?int {
-        return $this->cardinalityLimitResolver->resolveCardinalityLimit($instrumentType);
+        return $this->cardinalityLimitResolver?->resolveCardinalityLimit($instrumentType);
     }
 }
