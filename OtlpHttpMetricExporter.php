@@ -38,7 +38,7 @@ final class OtlpHttpMetricExporter extends OtlpHttpExporter implements MetricExp
         float $timeout = 10.,
         int $retryDelay = 5000,
         int $maxRetries = 5,
-        private readonly TemporalityResolver $temporalityResolver = TemporalityResolvers::LowMemory,
+        private readonly TemporalityResolver $temporalityResolver = TemporalityResolvers::Cumulative,
         private readonly Aggregation $aggregation = new DefaultAggregation(),
         private readonly ?CardinalityLimitResolver $cardinalityLimitResolver = null,
         ?LoggerInterface $logger = null,
