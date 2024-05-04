@@ -4,6 +4,9 @@ namespace Nevay\OTelSDK\Otlp\Internal;
 use Nevay\OTelSDK\Common\InstrumentationScope;
 use Nevay\OTelSDK\Common\Resource;
 use Nevay\OTelSDK\Metrics\Data\Exemplar;
+use Nevay\OTelSDK\Metrics\Data\ExponentialHistogram;
+use Nevay\OTelSDK\Metrics\Data\ExponentialHistogramBuckets;
+use Nevay\OTelSDK\Metrics\Data\ExponentialHistogramDataPoint;
 use Nevay\OTelSDK\Metrics\Data\Gauge;
 use Nevay\OTelSDK\Metrics\Data\Histogram;
 use Nevay\OTelSDK\Metrics\Data\HistogramDataPoint;
@@ -78,6 +81,9 @@ final class MetricConverter {
         if ($data instanceof Histogram) {
             $pMetric->setHistogram(self::convertHistogram($data, $format));
         }
+        if ($data instanceof ExponentialHistogram) {
+            $pMetric->setExponentialHistogram(self::convertExponentialHistogram($data, $format));
+        }
         if ($data instanceof Sum) {
             $pMetric->setSum(self::convertSum($data, $format));
         }
@@ -109,6 +115,16 @@ final class MetricConverter {
         $pHistogram->setAggregationTemporality(self::convertTemporality($histogram->temporality));
 
         return $pHistogram;
+    }
+
+    private static function convertExponentialHistogram(ExponentialHistogram $exponentialHistogram, ProtobufFormat $format): Proto\Metrics\V1\ExponentialHistogram {
+        $pExponentialHistogram = new Proto\Metrics\V1\ExponentialHistogram();
+        foreach ($exponentialHistogram->dataPoints as $dataPoint) {
+            $pExponentialHistogram->getDataPoints()[] = self::convertExponentialHistogramDataPoint($dataPoint, $format);
+        }
+        $pExponentialHistogram->setAggregationTemporality(self::convertTemporality($exponentialHistogram->temporality));
+
+        return $pExponentialHistogram;
     }
 
     private static function convertSum(Sum $sum, ProtobufFormat $format): Proto\Metrics\V1\Sum {
@@ -170,6 +186,50 @@ final class MetricConverter {
         }
 
         return $pHistogramDataPoint;
+    }
+
+    private static function convertExponentialHistogramDataPoint(ExponentialHistogramDataPoint $dataPoint, ProtobufFormat $format): Proto\Metrics\V1\ExponentialHistogramDataPoint {
+        $pExponentialHistogramDataPoint = new Proto\Metrics\V1\ExponentialHistogramDataPoint();
+        foreach ($dataPoint->attributes as $key => $value) {
+            $pExponentialHistogramDataPoint->getAttributes()[] = (new Proto\Common\V1\KeyValue())
+                ->setKey($key)
+                ->setValue(Converter::convertAnyValue($value));
+        }
+        $pExponentialHistogramDataPoint->setStartTimeUnixNano($dataPoint->startTimestamp);
+        $pExponentialHistogramDataPoint->setTimeUnixNano($dataPoint->timestamp);
+        $pExponentialHistogramDataPoint->setCount($dataPoint->count);
+        if ($dataPoint->sum !== null) {
+            $pExponentialHistogramDataPoint->setSum($dataPoint->sum);
+        }
+        if ($dataPoint->min !== null) {
+            $pExponentialHistogramDataPoint->setMin($dataPoint->min);
+        }
+        if ($dataPoint->max !== null) {
+            $pExponentialHistogramDataPoint->setMax($dataPoint->max);
+        }
+        $pExponentialHistogramDataPoint->setZeroCount($dataPoint->zeroCount);
+        $pExponentialHistogramDataPoint->setScale($dataPoint->scale);
+        if ($dataPoint->positive) {
+            $pExponentialHistogramDataPoint->setPositive(self::convertExponentialHistogramBuckets($dataPoint->positive));
+        }
+        if ($dataPoint->negative) {
+            $pExponentialHistogramDataPoint->setNegative(self::convertExponentialHistogramBuckets($dataPoint->negative));
+        }
+        foreach ($dataPoint->exemplars as $exemplar) {
+            $pExponentialHistogramDataPoint->getExemplars()[] = self::convertExemplar($exemplar, $format);
+        }
+
+        return $pExponentialHistogramDataPoint;
+    }
+
+    private static function convertExponentialHistogramBuckets(ExponentialHistogramBuckets $buckets): Proto\Metrics\V1\ExponentialHistogramDataPoint\Buckets {
+        $pBuckets = new Proto\Metrics\V1\ExponentialHistogramDataPoint\Buckets();
+        $pBuckets->setOffset($buckets->lo);
+        for ($i = $buckets->lo; $i <= $buckets->hi; $i++) {
+            $pBuckets->getBucketCounts()[] = $buckets->buckets[$i] ?? 0;
+        }
+
+        return $pBuckets;
     }
 
     private static function convertExemplar(Exemplar $exemplar, ProtobufFormat $format): Proto\Metrics\V1\Exemplar {
