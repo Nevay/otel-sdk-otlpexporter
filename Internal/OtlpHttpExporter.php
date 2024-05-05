@@ -266,6 +266,6 @@ abstract class OtlpHttpExporter implements Exporter {
     }
 
     private static function userAgent(): string {
-        return 'TBachert OTLP Exporter PHP/' . InstalledVersions::getPrettyVersion('tbachert/otel-sdk-otlpexporter');
+        return 'TBachert-OTLP-Exporter-PHP/' . InstalledVersions::getPrettyVersion('tbachert/otel-sdk-otlpexporter');
     }
 }
