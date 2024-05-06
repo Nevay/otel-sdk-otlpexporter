@@ -24,7 +24,7 @@ abstract class OtlpStreamExporter implements Exporter {
     private ?Future $write = null;
 
     public function __construct(WritableStream $stream, ?LoggerInterface $logger = null) {
-        $this->format = ProtobufFormat::JSON;
+        $this->format = ProtobufFormat::Json;
         $this->stream = $stream;
     }
 

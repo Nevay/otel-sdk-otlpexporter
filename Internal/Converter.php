@@ -99,15 +99,15 @@ final class Converter {
 
     public static function traceId(SpanContextInterface $spanContext, ProtobufFormat $format): string {
         return match ($format) {
-            ProtobufFormat::PROTOBUF => $spanContext->getTraceIdBinary(),
-            ProtobufFormat::JSON => base64_decode($spanContext->getTraceId()),
+            ProtobufFormat::Protobuf => $spanContext->getTraceIdBinary(),
+            ProtobufFormat::Json => base64_decode($spanContext->getTraceId()),
         };
     }
 
     public static function spanId(SpanContextInterface $spanContext, ProtobufFormat $format): string {
         return match ($format) {
-            ProtobufFormat::PROTOBUF => $spanContext->getSpanIdBinary(),
-            ProtobufFormat::JSON => base64_decode($spanContext->getSpanId()),
+            ProtobufFormat::Protobuf => $spanContext->getSpanIdBinary(),
+            ProtobufFormat::Json => base64_decode($spanContext->getSpanId()),
         };
     }
 }

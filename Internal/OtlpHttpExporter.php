@@ -69,7 +69,7 @@ abstract class OtlpHttpExporter implements Exporter {
         string $responseClass,
         HttpClient $client,
         UriInterface $endpoint,
-        ProtobufFormat $format = ProtobufFormat::PROTOBUF,
+        ProtobufFormat $format = ProtobufFormat::Protobuf,
         #[ExpectedValues(values: ['gzip', null])]
         ?string $compression = null,
         array $headers = [],

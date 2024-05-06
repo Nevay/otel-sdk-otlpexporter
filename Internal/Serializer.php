@@ -22,22 +22,22 @@ final class Serializer {
 
     public static function contentType(ProtobufFormat $format): string {
         return match ($format) {
-            ProtobufFormat::PROTOBUF => 'application/x-protobuf',
-            ProtobufFormat::JSON => 'application/json',
+            ProtobufFormat::Protobuf => 'application/x-protobuf',
+            ProtobufFormat::Json => 'application/json',
         };
     }
 
     public static function serialize(Message $message, ProtobufFormat $format): string {
         return match ($format) {
-            ProtobufFormat::PROTOBUF => $message->serializeToString(),
-            ProtobufFormat::JSON => self::postProcessJsonEnumValues($message, $message->serializeToJsonString()),
+            ProtobufFormat::Protobuf => $message->serializeToString(),
+            ProtobufFormat::Json => self::postProcessJsonEnumValues($message, $message->serializeToJsonString()),
         };
     }
 
     public static function hydrate(Message $message, string $payload, ProtobufFormat $format): void {
         match ($format) {
-            ProtobufFormat::PROTOBUF => $message->mergeFromString($payload),
-            ProtobufFormat::JSON => $message->mergeFromJsonString($payload, ignore_unknown: true),
+            ProtobufFormat::Protobuf => $message->mergeFromString($payload),
+            ProtobufFormat::Json => $message->mergeFromJsonString($payload, ignore_unknown: true),
         };
     }
 

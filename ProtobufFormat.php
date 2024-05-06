@@ -3,6 +3,6 @@ namespace Nevay\OTelSDK\Otlp;
 
 enum ProtobufFormat {
 
-    case PROTOBUF;
-    case JSON;
+    case Protobuf;
+    case Json;
 }

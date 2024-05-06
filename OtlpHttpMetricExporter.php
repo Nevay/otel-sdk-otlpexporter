@@ -31,7 +31,7 @@ final class OtlpHttpMetricExporter extends OtlpHttpExporter implements MetricExp
     public function __construct(
         HttpClient $client,
         UriInterface $endpoint,
-        ProtobufFormat $format = ProtobufFormat::PROTOBUF,
+        ProtobufFormat $format = ProtobufFormat::Protobuf,
         #[ExpectedValues(values: ['gzip', null])]
         ?string $compression = null,
         array $headers = [],

@@ -23,7 +23,7 @@ final class OtlpHttpSpanExporter extends OtlpHttpExporter implements SpanExporte
     public function __construct(
         HttpClient $client,
         UriInterface $endpoint,
-        ProtobufFormat $format = ProtobufFormat::PROTOBUF,
+        ProtobufFormat $format = ProtobufFormat::Protobuf,
         #[ExpectedValues(values: ['gzip', null])]
         ?string $compression = null,
         array $headers = [],
