@@ -219,7 +219,7 @@ abstract class OtlpHttpExporter implements Exporter {
                 if ($response->getStatus() >= 200 && $response->getStatus() < 300) {
                     return $response;
                 }
-                if ($response->getStatus() >= 400 && $response->getStatus() < 500 && !in_array($response->getStatus(), [408, 429], true)) {
+                if ($response->getStatus() >= 400 && $response->getStatus() < 600 && !in_array($response->getStatus(), [429, 502, 503, 504], true)) {
                     throw new HttpException($response->getReason(), $response->getStatus());
                 }
             } catch (SocketException | Http2ConnectionException | CancelledException $e) {
