@@ -27,7 +27,7 @@ final class LogRecordConverter {
             $instrumentationScope = $logRecord->getInstrumentationScope();
 
             $resourceId = spl_object_id($resource);
-            $instrumentationScopeId = Converter::instrumentationScopeId($instrumentationScope);
+            $instrumentationScopeId = spl_object_id($instrumentationScope);
 
             $pResourceLogs = $resourceLogs[$resourceId]
                 ??= $pExportLogsServiceRequest->getResourceLogs()[]

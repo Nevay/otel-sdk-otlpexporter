@@ -6,26 +6,15 @@ use Nevay\OTelSDK\Common\Resource;
 use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use OpenTelemetry\API\Trace\SpanContextInterface;
 use Opentelemetry\Proto;
-use WeakMap;
 use function array_is_list;
 use function extension_loaded;
 use function gettype;
 use function preg_match;
-use function serialize;
 
 /**
  * @internal
  */
 final class Converter {
-
-    public static function instrumentationScopeId(InstrumentationScope $instrumentationScope): string {
-        static $cache = new WeakMap();
-        return $cache[$instrumentationScope] ??= serialize([
-            $instrumentationScope->name,
-            $instrumentationScope->version,
-            $instrumentationScope->schemaUrl,
-        ]);
-    }
 
     public static function convertResource(Resource $resource): Proto\Resource\V1\Resource {
         $pResource = new Proto\Resource\V1\Resource();

@@ -37,7 +37,7 @@ final class MetricConverter {
             $instrumentationScope = $metric->descriptor->instrumentationScope;
 
             $resourceId = spl_object_id($resource);
-            $instrumentationScopeId = Converter::instrumentationScopeId($instrumentationScope);
+            $instrumentationScopeId = spl_object_id($instrumentationScope);
 
             $pResourceMetrics = $resourceMetrics[$resourceId]
                 ??= $pExportMetricsServiceRequest->getResourceMetrics()[]

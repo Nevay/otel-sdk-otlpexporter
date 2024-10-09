@@ -30,7 +30,7 @@ final class SpanConverter {
             $instrumentationScope = $span->getInstrumentationScope();
 
             $resourceId = spl_object_id($resource);
-            $instrumentationScopeId = Converter::instrumentationScopeId($instrumentationScope);
+            $instrumentationScopeId = spl_object_id($instrumentationScope);
 
             $pResourceSpans = $resourceSpans[$resourceId]
                 ??= $pExportTraceServiceRequest->getResourceSpans()[]
