@@ -63,7 +63,7 @@ abstract class OtlpStreamExporter implements Exporter {
         }
 
         $this->stream = null;
-        $this->write?->await($cancellation);
+        $this->write?->catch(static fn() => null)->await($cancellation);
 
         return true;
     }
@@ -73,7 +73,7 @@ abstract class OtlpStreamExporter implements Exporter {
             return false;
         }
 
-        $this->write?->await($cancellation);
+        $this->write?->catch(static fn() => null)->await($cancellation);
 
         return true;
     }
