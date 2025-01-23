@@ -76,6 +76,7 @@ final class LogRecordConverter {
             $pLogRecord->setTraceId(Converter::traceId($spanContext, $format));
             $pLogRecord->setSpanId(Converter::spanId($spanContext, $format));
         }
+        $pLogRecord->setEventName($logRecord->getEventName() ?? '');
 
         return $pLogRecord;
     }

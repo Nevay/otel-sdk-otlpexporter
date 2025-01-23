@@ -11,7 +11,7 @@
         "amphp/http-client": "^5.0",
         "google/protobuf": "^3.4",
         "open-telemetry/api": "^1.0",
-        "open-telemetry/gen-otlp-protobuf": "^1.1",
+        "open-telemetry/gen-otlp-protobuf": "^1.5",
         "psr/log": "^1 || ^2 || ^3",
         "revolt/event-loop": "^1.0",
         "tbachert/otel-sdk-common": "^0.1",
