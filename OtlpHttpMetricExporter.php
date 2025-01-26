@@ -2,6 +2,7 @@
 namespace Nevay\OTelSDK\Otlp;
 
 use Amp\Http\Client\HttpClient;
+use Composer\InstalledVersions;
 use Google\Protobuf\Internal\Message;
 use JetBrains\PhpStorm\ExpectedValues;
 use Nevay\OTelSDK\Metrics\Aggregation;
@@ -18,15 +19,20 @@ use Nevay\OTelSDK\Otlp\Internal\MetricConverter;
 use Nevay\OTelSDK\Otlp\Internal\OtlpHttpExporter;
 use Nevay\OTelSDK\Otlp\Internal\PartialSuccess;
 use Nevay\OTelSDK\Otlp\Internal\RequestPayload;
+use OpenTelemetry\API\Metrics\MeterProviderInterface;
+use OpenTelemetry\API\Metrics\Noop\NoopMeterProvider;
 use Opentelemetry\Proto\Collector\Metrics\V1\ExportMetricsServiceRequest;
 use Opentelemetry\Proto\Collector\Metrics\V1\ExportMetricsServiceResponse;
 use Psr\Http\Message\UriInterface;
 use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
  * @implements OtlpHttpExporter<Metric, ExportMetricsServiceRequest, ExportMetricsServiceResponse>
  */
 final class OtlpHttpMetricExporter extends OtlpHttpExporter implements MetricExporter {
+
+    private static int $instanceCounter = -1;
 
     public function __construct(
         HttpClient $client,
@@ -41,8 +47,30 @@ final class OtlpHttpMetricExporter extends OtlpHttpExporter implements MetricExp
         private readonly TemporalityResolver $temporalityResolver = TemporalityResolvers::Cumulative,
         private readonly Aggregation $aggregation = new DefaultAggregation(),
         private readonly ?CardinalityLimitResolver $cardinalityLimitResolver = null,
-        ?LoggerInterface $logger = null,
+        MeterProviderInterface $meterProvider = new NoopMeterProvider(),
+        LoggerInterface $logger = new NullLogger(),
+        ?string $name = null,
     ) {
+        $type = match ($format) {
+            ProtobufFormat::Protobuf => 'otlp_http_metric_exporter',
+            ProtobufFormat::Json => 'otlp_http_json_metric_exporter',
+        };
+        $name ??= $type . '/' . ++self::$instanceCounter;
+
+        $version = InstalledVersions::getVersionRanges('tbachert/otel-sdk-otlpexporter');
+        $meter = $meterProvider->getMeter('com.tobiasbachert.otel.sdk.otlpexporter', $version);
+
+        $inflight = $meter->createUpDownCounter(
+            'otel.sdk.metrics.exporter.metrics_inflight',
+            '{metric}',
+            'The number of metrics which were passed to the exporter, but that have not been exported yet (neither successful, nor failed)',
+        );
+        $exported = $meter->createCounter(
+            'otel.sdk.metrics.exporter.metrics_exported',
+            '{metric}',
+            'The number of metrics for which the export has finished, either successful or failed',
+        );
+
         parent::__construct(
             ExportMetricsServiceResponse::class,
             $client,
@@ -54,6 +82,10 @@ final class OtlpHttpMetricExporter extends OtlpHttpExporter implements MetricExp
             $retryDelay,
             $maxRetries,
             $logger,
+            $inflight,
+            $exported,
+            $type,
+            $name,
         );
     }
 

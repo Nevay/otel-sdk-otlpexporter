@@ -2,6 +2,7 @@
 namespace Nevay\OTelSDK\Otlp;
 
 use Amp\Http\Client\HttpClient;
+use Composer\InstalledVersions;
 use Google\Protobuf\Internal\Message;
 use JetBrains\PhpStorm\ExpectedValues;
 use Nevay\OTelSDK\Otlp\Internal\OtlpHttpExporter;
@@ -10,15 +11,20 @@ use Nevay\OTelSDK\Otlp\Internal\RequestPayload;
 use Nevay\OTelSDK\Otlp\Internal\SpanConverter;
 use Nevay\OTelSDK\Trace\ReadableSpan;
 use Nevay\OTelSDK\Trace\SpanExporter;
+use OpenTelemetry\API\Metrics\MeterProviderInterface;
+use OpenTelemetry\API\Metrics\Noop\NoopMeterProvider;
 use Opentelemetry\Proto\Collector\Trace\V1\ExportTraceServiceRequest;
 use Opentelemetry\Proto\Collector\Trace\V1\ExportTraceServiceResponse;
 use Psr\Http\Message\UriInterface;
 use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
  * @implements OtlpHttpExporter<ReadableSpan, ExportTraceServiceRequest, ExportTraceServiceResponse>
  */
 final class OtlpHttpSpanExporter extends OtlpHttpExporter implements SpanExporter {
+
+    private static int $instanceCounter = -1;
 
     public function __construct(
         HttpClient $client,
@@ -30,8 +36,30 @@ final class OtlpHttpSpanExporter extends OtlpHttpExporter implements SpanExporte
         float $timeout = 10.,
         int $retryDelay = 5000,
         int $maxRetries = 5,
-        ?LoggerInterface $logger = null,
+        MeterProviderInterface $meterProvider = new NoopMeterProvider(),
+        LoggerInterface $logger = new NullLogger(),
+        ?string $name = null,
     ) {
+        $type = match ($format) {
+            ProtobufFormat::Protobuf => 'otlp_http_span_exporter',
+            ProtobufFormat::Json => 'otlp_http_json_span_exporter',
+        };
+        $name ??= $type . '/' . ++self::$instanceCounter;
+
+        $version = InstalledVersions::getVersionRanges('tbachert/otel-sdk-otlpexporter');
+        $meter = $meterProvider->getMeter('com.tobiasbachert.otel.sdk.otlpexporter', $version);
+
+        $inflight = $meter->createUpDownCounter(
+            'otel.sdk.span.exporter.spans_inflight',
+            '{span}',
+            'The number of spans which were passed to the exporter, but that have not been exported yet (neither successful, nor failed)',
+        );
+        $exported = $meter->createCounter(
+            'otel.sdk.span.exporter.spans_exported',
+            '{span}',
+            'The number of spans for which the export has finished, either successful or failed',
+        );
+
         parent::__construct(
             ExportTraceServiceResponse::class,
             $client,
@@ -43,6 +71,10 @@ final class OtlpHttpSpanExporter extends OtlpHttpExporter implements SpanExporte
             $retryDelay,
             $maxRetries,
             $logger,
+            $inflight,
+            $exported,
+            $type,
+            $name,
         );
     }
 

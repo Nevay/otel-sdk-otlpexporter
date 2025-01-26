@@ -20,8 +20,11 @@ use JetBrains\PhpStorm\ExpectedValues;
 use Nevay\OTelSDK\Common\Internal\Export\Exception\TransientExportException;
 use Nevay\OTelSDK\Common\Internal\Export\Exporter;
 use Nevay\OTelSDK\Otlp\ProtobufFormat;
+use OpenTelemetry\API\Metrics\CounterInterface;
+use OpenTelemetry\API\Metrics\UpDownCounterInterface;
 use Psr\Http\Message\UriInterface;
 use Psr\Log\LoggerInterface;
+use Throwable;
 use function Amp\async;
 use function Amp\delay;
 use function array_key_last;
@@ -52,12 +55,17 @@ abstract class OtlpHttpExporter implements Exporter {
     private readonly float $timeout;
     private readonly int $retryDelay;
     private readonly int $maxRetries;
-    private readonly ?LoggerInterface $logger;
+    private readonly LoggerInterface $logger;
 
     /** @var array<int, Future> */
     private array $pending = [];
 
     private readonly string $responseClass;
+
+    private readonly UpDownCounterInterface $inflight;
+    private readonly CounterInterface $exported;
+    private readonly string $type;
+    private readonly string $name;
 
     private DeferredCancellation $shutdown;
     private bool $closed = false;
@@ -69,14 +77,18 @@ abstract class OtlpHttpExporter implements Exporter {
         string $responseClass,
         HttpClient $client,
         UriInterface $endpoint,
-        ProtobufFormat $format = ProtobufFormat::Protobuf,
+        ProtobufFormat $format,
         #[ExpectedValues(values: ['gzip', null])]
-        ?string $compression = null,
-        array $headers = [],
-        float $timeout = 10.,
-        int $retryDelay = 5000,
-        int $maxRetries = 5,
-        ?LoggerInterface $logger = null,
+        ?string $compression,
+        array $headers,
+        float $timeout,
+        int $retryDelay,
+        int $maxRetries,
+        LoggerInterface $logger,
+        UpDownCounterInterface $inflight,
+        CounterInterface $exported,
+        string $type,
+        string $name,
     ) {
         if ($timeout < 0) {
             throw new InvalidArgumentException(sprintf('Timeout (%s) must be greater than or equal to zero', $timeout));
@@ -98,6 +110,10 @@ abstract class OtlpHttpExporter implements Exporter {
         $this->retryDelay = $retryDelay;
         $this->maxRetries = $maxRetries;
         $this->logger = $logger;
+        $this->inflight = $inflight;
+        $this->exported = $exported;
+        $this->type = $type;
+        $this->name = $name;
         $this->shutdown = new DeferredCancellation();
     }
 
@@ -123,7 +139,7 @@ abstract class OtlpHttpExporter implements Exporter {
         }
 
         $payload = $this->convertPayload($batch, $this->format);
-        if (!$payload->items) {
+        if (!$count = $payload->items) {
             return Future::complete(true);
         }
 
@@ -131,8 +147,34 @@ abstract class OtlpHttpExporter implements Exporter {
         $request = $this->prepareRequest($payload->message);
         $cancellation = $this->cancellation($cancellation);
 
-        $future = async($this->sendRequest(...), $request, $cancellation)
-            ->map($this->mapResponse(...));
+        $future = async(function(Request $request, Cancellation $cancellation) use ($count): bool {
+            $this->inflight->add($count, ['otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
+
+            try {
+                $response = $this->sendRequest($request, $cancellation);
+                unset($request, $cancellation);
+
+                $partialSuccess = $this->mapResponse($response);
+            } catch (Throwable $e) {
+                $this->exported->add($count, ['error.type' => $e::class, 'otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
+                $this->logger->warning('Export failure: {exception}', ['exception' => $e, 'otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
+
+                return false;
+            } finally {
+                $this->inflight->add(-$count, ['otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
+            }
+
+            $partialSuccess ??= new PartialSuccess('');
+
+            $this->exported->add($count - $partialSuccess->rejectedItems, ['otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
+            $this->exported->add($partialSuccess->rejectedItems, ['error.type' => 'rejected', 'otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
+
+            if ($partialSuccess->rejectedItems || $partialSuccess->errorMessage) {
+                $this->logger->warning('Export partial success with warnings/suggestions', ['rejected_items' => $partialSuccess->rejectedItems, 'error_message' => $partialSuccess->errorMessage]);
+            }
+
+            return true;
+        }, $request, $cancellation);
 
         $id = array_key_last($this->pending) + 1;
         $this->pending[$id] = $future->finally(function() use ($id): void {
@@ -166,24 +208,11 @@ abstract class OtlpHttpExporter implements Exporter {
         return true;
     }
 
-    private function mapResponse(Response $response): bool {
+    private function mapResponse(Response $response): ?PartialSuccess {
         $message = new $this->responseClass;
         Serializer::hydrate($message, $response->getBody()->buffer(), $this->format);
 
-        $partialSuccess = $this->convertResponse($message);
-        if ($partialSuccess?->rejectedItems) {
-            $this->logger?->error('Export partial success', [
-                'rejected_items' => $partialSuccess->rejectedItems,
-                'error_message' => $partialSuccess->errorMessage,
-            ]);
-        }
-        if ($partialSuccess?->errorMessage) {
-            $this->logger?->warning('Export success with warnings/suggestions', [
-                'error_message' => $partialSuccess->errorMessage
-            ]);
-        }
-
-        return true;
+        return $this->convertResponse($message);
     }
 
     private function prepareRequest(Message $message): Request {
@@ -223,7 +252,7 @@ abstract class OtlpHttpExporter implements Exporter {
                     throw new HttpException($response->getReason(), $response->getStatus());
                 }
             } catch (SocketException | Http2ConnectionException | CancelledException $e) {
-                $this->logger?->info('Retryable exception during export {exception}', ['exception' => $e, 'retry' => $retries]);
+                $this->logger->info('Retryable exception during export {exception}', ['exception' => $e, 'retry' => $retries]);
             }
 
             if (++$retries === $this->maxRetries) {
