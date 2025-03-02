@@ -33,10 +33,6 @@ final class MetricConverter {
         $resourceMetrics = [];
         $scopeMetrics = [];
         foreach ($batch as $metric) {
-            if (!$metric->data->dataPoints) {
-                continue;
-            }
-
             $resource = $metric->descriptor->resource;
             $instrumentationScope = $metric->descriptor->instrumentationScope;
 
