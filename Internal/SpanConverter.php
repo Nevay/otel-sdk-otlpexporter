@@ -65,7 +65,7 @@ final class SpanConverter {
         $pSpan = new Proto\Trace\V1\Span();
         $pSpan->setTraceId(Converter::traceId($span->getContext(), $format));
         $pSpan->setSpanId(Converter::spanId($span->getContext(), $format));
-        $pSpan->setFlags(self::flags($span->getContext()));
+        $pSpan->setFlags(self::flags($span->getContext(), $span->getParentContext()?->isRemote()));
         $pSpan->setTraceState((string) $span->getContext()->getTraceState());
         if ($span->getParentContext()) {
             $pSpan->setParentSpanId(Converter::spanId($span->getParentContext(), $format));
@@ -104,7 +104,7 @@ final class SpanConverter {
             $pSpan->getLinks()[] = $pLink = new Proto\Trace\V1\Span\Link();
             $pLink->setTraceId(Converter::traceId($link->spanContext, $format));
             $pLink->setSpanId(Converter::spanId($link->spanContext, $format));
-            $pLink->setFlags(self::flags($link->spanContext));
+            $pLink->setFlags(self::flags($link->spanContext, $link->spanContext->isRemote()));
             $pLink->setTraceState((string) $link->spanContext->getTraceState());
             foreach ($link->attributes as $key => $value) {
                 $pLink->getAttributes()[] = (new Proto\Common\V1\KeyValue())
@@ -129,10 +129,10 @@ final class SpanConverter {
         return $pSpan;
     }
 
-    private static function flags(SpanContextInterface $spanContext): int {
+    private static function flags(SpanContextInterface $spanContext, ?bool $isRemote): int {
         $flags = $spanContext->getTraceFlags();
         $flags |= 1 << 8;
-        $flags |= $spanContext->isRemote() << 9;
+        $flags |= $isRemote << 9;
 
         return $flags;
     }
