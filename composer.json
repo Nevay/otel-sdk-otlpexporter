@@ -9,7 +9,7 @@
         "amphp/amp": "^3.0",
         "amphp/byte-stream": "^2.0",
         "amphp/http-client": "^5.0",
-        "google/protobuf": "^3.4",
+        "google/protobuf": "^3.4 || ^4.26",
         "open-telemetry/api": "^1.0",
         "open-telemetry/gen-otlp-protobuf": "^1.5",
         "psr/log": "^1 || ^2 || ^3",

@@ -6,6 +6,7 @@ use Google\Protobuf\Internal\GPBLabel;
 use Google\Protobuf\Internal\GPBType;
 use Google\Protobuf\Internal\Message;
 use Nevay\OTelSDK\Otlp\ProtobufFormat;
+use function class_exists;
 use function json_decode;
 use function json_encode;
 use function lcfirst;
@@ -30,7 +31,10 @@ final class Serializer {
     public static function serialize(Message $message, ProtobufFormat $format): string {
         return match ($format) {
             ProtobufFormat::Protobuf => $message->serializeToString(),
-            ProtobufFormat::Json => self::postProcessJsonEnumValues($message, $message->serializeToJsonString()),
+            # https://github.com/protocolbuffers/protobuf/pull/12707
+            ProtobufFormat::Json => class_exists(\Google\Protobuf\PrintOptions::class)
+                ? $message->serializeToJsonString(\Google\Protobuf\PrintOptions::ALWAYS_PRINT_ENUMS_AS_INTS)
+                : self::postProcessJsonEnumValues($message, $message->serializeToJsonString()),
         };
     }
 
