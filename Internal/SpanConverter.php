@@ -20,8 +20,9 @@ final class SpanConverter {
     /**
      * @param iterable<ReadableSpan> $spans
      */
-    public static function convert(iterable $spans, ProtobufFormat $format): ExportTraceServiceRequest {
+    public static function convert(iterable $spans, ProtobufFormat $format, ?int &$count = null): ExportTraceServiceRequest {
         $pExportTraceServiceRequest = new ExportTraceServiceRequest();
+        $count ??= 0;
 
         $resourceSpans = [];
         $scopeSpans = [];
@@ -40,6 +41,7 @@ final class SpanConverter {
                 = self::convertScopeSpans($instrumentationScope);
 
             $pScopeSpans->getSpans()[] = self::convertSpan($span, $format);
+            $count++;
         }
 
         return $pExportTraceServiceRequest;

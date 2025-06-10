@@ -39,35 +39,39 @@ final class OtlpStreamMetricExporter extends OtlpStreamExporter implements Metri
         $name ??= $type . '/' . ++self::$instanceCounter;
 
         $version = InstalledVersions::getVersionRanges('tbachert/otel-sdk-otlpexporter');
-        $meter = $meterProvider->getMeter('com.tobiasbachert.otel.sdk.otlpexporter', $version);
+        $meter = $meterProvider->getMeter('com.tobiasbachert.otel.sdk.otlpexporter', $version, 'https://opentelemetry.io/schemas/1.34.0');
 
         $inflight = $meter->createUpDownCounter(
-            'otel.sdk.metrics.exporter.metrics_inflight',
-            '{metric}',
+            'otel.sdk.exporter.metric_data_point.inflight',
+            '{data_point}',
             'The number of metrics which were passed to the exporter, but that have not been exported yet (neither successful, nor failed)',
         );
         $exported = $meter->createCounter(
-            'otel.sdk.metrics.exporter.metrics_exported',
-            '{metric}',
+            'otel.sdk.exporter.metric_data_point.exported',
+            '{data_point}',
             'The number of metrics for which the export has finished, either successful or failed',
         );
-
+        $duration = $meter->createHistogram(
+            'otel.sdk.exporter.operation.duration',
+            's',
+            'The duration of exporting a batch of telemetry records',
+            advisory: ['ExplicitBucketBoundaries' => []],
+        );
         parent::__construct(
             $stream,
             $logger,
             $inflight,
             $exported,
+            $duration,
             $type,
             $name,
         );
     }
 
     protected function convertPayload(iterable $batch, ProtobufFormat $format): RequestPayload {
-        $message = MetricConverter::convert($batch, $format);
-
         return new RequestPayload(
-            $message,
-            $message->getResourceMetrics()->count(),
+            MetricConverter::convert($batch, $format, $count),
+            $count,
         );
     }
 

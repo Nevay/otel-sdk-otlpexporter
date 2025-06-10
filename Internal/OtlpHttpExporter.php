@@ -21,6 +21,7 @@ use Nevay\OTelSDK\Common\Internal\Export\Exception\TransientExportException;
 use Nevay\OTelSDK\Common\Internal\Export\Exporter;
 use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use OpenTelemetry\API\Metrics\CounterInterface;
+use OpenTelemetry\API\Metrics\HistogramInterface;
 use OpenTelemetry\API\Metrics\UpDownCounterInterface;
 use Psr\Http\Message\UriInterface;
 use Psr\Log\LoggerInterface;
@@ -29,6 +30,7 @@ use function Amp\async;
 use function Amp\delay;
 use function array_key_last;
 use function extension_loaded;
+use function hrtime;
 use function in_array;
 use function max;
 use function sprintf;
@@ -64,8 +66,8 @@ abstract class OtlpHttpExporter implements Exporter {
 
     private readonly UpDownCounterInterface $inflight;
     private readonly CounterInterface $exported;
-    private readonly string $type;
-    private readonly string $name;
+    private readonly HistogramInterface $duration;
+    private readonly array $attributes;
 
     private DeferredCancellation $shutdown;
     private bool $closed = false;
@@ -87,6 +89,7 @@ abstract class OtlpHttpExporter implements Exporter {
         LoggerInterface $logger,
         UpDownCounterInterface $inflight,
         CounterInterface $exported,
+        HistogramInterface $duration,
         string $type,
         string $name,
     ) {
@@ -112,9 +115,19 @@ abstract class OtlpHttpExporter implements Exporter {
         $this->logger = $logger;
         $this->inflight = $inflight;
         $this->exported = $exported;
-        $this->type = $type;
-        $this->name = $name;
+        $this->duration = $duration;
         $this->shutdown = new DeferredCancellation();
+
+        $this->attributes = [
+            'otel.component.name' => $name,
+            'otel.component.type' => $type,
+            'server.address' => $endpoint->getHost(),
+            'server.port' => $endpoint->getPort() ?? match ($endpoint->getScheme()) {
+                'https' => 443,
+                'http' => 80,
+                default => null,
+            },
+        ];
     }
 
     /**
@@ -148,26 +161,30 @@ abstract class OtlpHttpExporter implements Exporter {
         $cancellation = $this->cancellation($cancellation);
 
         $future = async(function(Request $request, Cancellation $cancellation) use ($count): bool {
-            $this->inflight->add($count, ['otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
+            $this->inflight->add($count, $this->attributes);
 
+            $start = hrtime(true);
             try {
                 $response = $this->sendRequest($request, $cancellation);
                 unset($request, $cancellation);
 
                 $partialSuccess = $this->mapResponse($response);
+
+                $this->duration->record((hrtime(true) - $start) / 1e9, ['http.response.status_code' => $response->getStatus(), ...$this->attributes]);
             } catch (Throwable $e) {
-                $this->exported->add($count, ['error.type' => $e::class, 'otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
-                $this->logger->warning('Export failure: {exception}', ['exception' => $e, 'otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
+                $this->duration->record((hrtime(true) - $start) / 1e9, ['error.type' => $e::class, ...$this->attributes]);
+                $this->exported->add($count, ['error.type' => $e::class, ...$this->attributes]);
+                $this->logger->warning('Export failure: {exception}', ['exception' => $e, ...$this->attributes]);
 
                 return false;
             } finally {
-                $this->inflight->add(-$count, ['otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
+                $this->inflight->add(-$count, $this->attributes);
             }
 
             $partialSuccess ??= new PartialSuccess('');
 
-            $this->exported->add($count - $partialSuccess->rejectedItems, ['otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
-            $this->exported->add($partialSuccess->rejectedItems, ['error.type' => 'rejected', 'otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
+            $this->exported->add($count - $partialSuccess->rejectedItems, $this->attributes);
+            $this->exported->add($partialSuccess->rejectedItems, ['error.type' => 'rejected', ...$this->attributes]);
 
             if ($partialSuccess->rejectedItems || $partialSuccess->errorMessage) {
                 $this->logger->warning('Export partial success with warnings/suggestions', ['rejected_items' => $partialSuccess->rejectedItems, 'error_message' => $partialSuccess->errorMessage]);

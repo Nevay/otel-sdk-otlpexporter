@@ -17,8 +17,9 @@ final class LogRecordConverter {
     /**
      * @param iterable<ReadableLogRecord> $batch
      */
-    public static function convert(iterable $batch, ProtobufFormat $format): ExportLogsServiceRequest {
+    public static function convert(iterable $batch, ProtobufFormat $format, ?int &$count = null): ExportLogsServiceRequest {
         $pExportLogsServiceRequest = new ExportLogsServiceRequest();
+        $count ??= 0;
 
         $resourceLogs = [];
         $scopeLogs = [];
@@ -37,6 +38,7 @@ final class LogRecordConverter {
                 = self::convertScopeLogs($instrumentationScope);
 
             $pScopeLogs->getLogRecords()[] = self::convertLogRecord($logRecord, $format);
+            $count++;
         }
 
         return $pExportLogsServiceRequest;

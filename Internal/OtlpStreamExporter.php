@@ -8,10 +8,12 @@ use Google\Protobuf\Internal\Message;
 use Nevay\OTelSDK\Common\Internal\Export\Exporter;
 use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use OpenTelemetry\API\Metrics\CounterInterface;
+use OpenTelemetry\API\Metrics\HistogramInterface;
 use OpenTelemetry\API\Metrics\UpDownCounterInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 use function Amp\async;
+use function hrtime;
 
 /**
  * @internal
@@ -29,14 +31,15 @@ abstract class OtlpStreamExporter implements Exporter {
 
     private readonly UpDownCounterInterface $inflight;
     private readonly CounterInterface $exported;
-    private readonly string $type;
-    private readonly string $name;
+    private readonly HistogramInterface $duration;
+    private readonly array $attributes;
 
     public function __construct(
         WritableStream $stream,
         LoggerInterface $logger,
         UpDownCounterInterface $inflight,
         CounterInterface $exported,
+        HistogramInterface $duration,
         string $type,
         string $name,
     ) {
@@ -45,8 +48,12 @@ abstract class OtlpStreamExporter implements Exporter {
         $this->logger = $logger;
         $this->inflight = $inflight;
         $this->exported = $exported;
-        $this->type = $type;
-        $this->name = $name;
+        $this->duration = $duration;
+
+        $this->attributes = [
+            'otel.component.name' => $name,
+            'otel.component.type' => $type,
+        ];
     }
 
     /**
@@ -74,20 +81,24 @@ abstract class OtlpStreamExporter implements Exporter {
         $payload = Serializer::serialize($payload->message, $this->format) . "\n";
 
         $future = async(function(WritableStream $stream, string $payload) use ($count): bool {
-            $this->inflight->add($count, ['otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
+            $this->inflight->add($count, $this->attributes);
 
+            $start = hrtime(true);
             try {
                 $stream->write($payload);
+
+                $this->duration->record((hrtime(true) - $start) / 1e9, $this->attributes);
             } catch (Throwable $e) {
-                $this->exported->add($count, ['error.type' => $e::class, 'otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
-                $this->logger->warning('Export failure: {exception}', ['exception' => $e, 'otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
+                $this->duration->record((hrtime(true) - $start) / 1e9, ['error.type' => $e::class, ...$this->attributes]);
+                $this->exported->add($count, ['error.type' => $e::class, ...$this->attributes]);
+                $this->logger->warning('Export failure: {exception}', ['exception' => $e, ...$this->attributes]);
 
                 return false;
             } finally {
-                $this->inflight->add(-$count, ['otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
+                $this->inflight->add(-$count, $this->attributes);
             }
 
-            $this->exported->add($count, ['otel.sdk.component.name' => $this->name, 'otel.sdk.component.type' => $this->type]);
+            $this->exported->add($count, $this->attributes);
 
             return true;
         }, $stream, $payload);

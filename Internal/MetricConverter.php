@@ -27,8 +27,9 @@ final class MetricConverter {
     /**
      * @param iterable<Metric> $batch
      */
-    public static function convert(iterable $batch, ProtobufFormat $format): ExportMetricsServiceRequest {
+    public static function convert(iterable $batch, ProtobufFormat $format, ?int &$count = null): ExportMetricsServiceRequest {
         $pExportMetricsServiceRequest = new ExportMetricsServiceRequest();
+        $count ??= 0;
 
         $resourceMetrics = [];
         $scopeMetrics = [];
@@ -47,6 +48,7 @@ final class MetricConverter {
                 = self::convertScopeMetrics($instrumentationScope);
 
             $pScopeMetrics->getMetrics()[] = self::convertMetric($metric, $format);
+            $count++;
         }
 
         return $pExportMetricsServiceRequest;
