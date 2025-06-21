@@ -13,7 +13,6 @@ use Nevay\OTelSDK\Metrics\Data\Temporality;
 use Nevay\OTelSDK\Metrics\InstrumentType;
 use Nevay\OTelSDK\Metrics\MetricExporter;
 use Nevay\OTelSDK\Metrics\TemporalityResolver;
-use Nevay\OTelSDK\Metrics\TemporalityResolvers;
 use Nevay\OTelSDK\Otlp\Internal\MetricConverter;
 use Nevay\OTelSDK\Otlp\Internal\OtlpHttpExporter;
 use Nevay\OTelSDK\Otlp\Internal\PartialSuccess;
@@ -43,7 +42,7 @@ final class OtlpHttpMetricExporter extends OtlpHttpExporter implements MetricExp
         float $timeout = 10.,
         int $retryDelay = 5000,
         int $maxRetries = 5,
-        private readonly TemporalityResolver $temporalityResolver = TemporalityResolvers::Cumulative,
+        private readonly TemporalityResolver $temporalityResolver = TemporalityResolver::Cumulative,
         private readonly Aggregation $aggregation = new DefaultAggregation(),
         MeterProviderInterface $meterProvider = new NoopMeterProvider(),
         LoggerInterface $logger = new NullLogger(),

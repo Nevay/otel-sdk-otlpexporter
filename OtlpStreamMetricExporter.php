@@ -11,7 +11,6 @@ use Nevay\OTelSDK\Metrics\Data\Temporality;
 use Nevay\OTelSDK\Metrics\InstrumentType;
 use Nevay\OTelSDK\Metrics\MetricExporter;
 use Nevay\OTelSDK\Metrics\TemporalityResolver;
-use Nevay\OTelSDK\Metrics\TemporalityResolvers;
 use Nevay\OTelSDK\Otlp\Internal\MetricConverter;
 use Nevay\OTelSDK\Otlp\Internal\OtlpStreamExporter;
 use Nevay\OTelSDK\Otlp\Internal\RequestPayload;
@@ -30,7 +29,7 @@ final class OtlpStreamMetricExporter extends OtlpStreamExporter implements Metri
 
     public function __construct(
         WritableStream $stream,
-        private readonly TemporalityResolver $temporalityResolver = TemporalityResolvers::Cumulative,
+        private readonly TemporalityResolver $temporalityResolver = TemporalityResolver::Cumulative,
         private readonly Aggregation $aggregation = new DefaultAggregation(),
         MeterProviderInterface $meterProvider = new NoopMeterProvider(),
         LoggerInterface $logger = new NullLogger(),
