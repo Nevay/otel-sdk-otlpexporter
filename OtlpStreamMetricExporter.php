@@ -28,7 +28,7 @@ final class OtlpStreamMetricExporter extends OtlpStreamExporter implements Metri
 
     public function __construct(
         WritableStream $stream,
-        private readonly TemporalityResolver $temporalityResolver = TemporalityResolver::Cumulative,
+        private readonly TemporalityResolver $temporalityResolver = OltpTemporality::Cumulative,
         private readonly Aggregation $aggregation = new DefaultAggregation(),
         MeterProviderInterface $meterProvider = new NoopMeterProvider(),
         LoggerInterface $logger = new NullLogger(),

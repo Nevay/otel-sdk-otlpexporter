@@ -42,7 +42,7 @@ final class OtlpGrpcMetricExporter extends OtlpGrpcExporter implements MetricExp
         float $timeout = 10.,
         int $retryDelay = 5000,
         int $maxRetries = 5,
-        private readonly ?TemporalityResolver $temporalityResolver = TemporalityResolver::Cumulative,
+        private readonly TemporalityResolver $temporalityResolver = OltpTemporality::Cumulative,
         private readonly Aggregation $aggregation = new DefaultAggregation(),
         MeterProviderInterface $meterProvider = new NoopMeterProvider(),
         LoggerInterface $logger = new NullLogger(),
