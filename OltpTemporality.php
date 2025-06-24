@@ -25,7 +25,7 @@ enum OltpTemporality implements TemporalityResolver {
      */
     case LowMemory;
 
-    public function resolveTemporality(InstrumentType $instrumentType, Temporality $preferredTemporality): Temporality {
+    public function resolveTemporality(InstrumentType $instrumentType): Temporality {
         return match ($this) {
             self::Cumulative => Temporality::Cumulative,
 

@@ -73,8 +73,8 @@ final class OtlpStreamMetricExporter extends OtlpStreamExporter implements Metri
         );
     }
 
-    public function resolveTemporality(InstrumentType $instrumentType, Temporality $preferredTemporality): Temporality {
-        return $this->temporalityResolver->resolveTemporality($instrumentType, $preferredTemporality);
+    public function resolveTemporality(InstrumentType $instrumentType): Temporality {
+        return $this->temporalityResolver->resolveTemporality($instrumentType);
     }
 
     public function resolveAggregation(InstrumentType $instrumentType): Aggregation {
