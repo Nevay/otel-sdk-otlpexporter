@@ -31,12 +31,16 @@ use function Amp\delay;
 use function array_key_last;
 use function extension_loaded;
 use function hrtime;
-use function in_array;
 use function max;
+use function mt_rand;
+use function pack;
 use function sprintf;
+use function strlen;
 use function strtotime;
+use function substr;
 use function time;
 use function trim;
+use function unpack;
 
 /**
  * @internal
@@ -46,12 +50,11 @@ use function trim;
  * @template R of Message
  * @implements Exporter<T>
  */
-abstract class OtlpHttpExporter implements Exporter {
+abstract class OtlpGrpcExporter implements Exporter {
 
     private readonly HttpClient $client;
     private readonly UriInterface $endpoint;
 
-    private readonly ProtobufFormat $format;
     private readonly ?string $compression;
     private readonly array $headers;
     private readonly float $timeout;
@@ -79,7 +82,6 @@ abstract class OtlpHttpExporter implements Exporter {
         string $responseClass,
         HttpClient $client,
         UriInterface $endpoint,
-        ProtobufFormat $format,
         #[ExpectedValues(values: ['gzip', null])]
         ?string $compression,
         array $headers,
@@ -106,7 +108,6 @@ abstract class OtlpHttpExporter implements Exporter {
         $this->responseClass = $responseClass;
         $this->client = $client;
         $this->endpoint = $endpoint;
-        $this->format = $format;
         $this->compression = $compression;
         $this->headers = $headers;
         $this->timeout = $timeout;
@@ -151,7 +152,7 @@ abstract class OtlpHttpExporter implements Exporter {
             return Future::complete(false);
         }
 
-        $payload = $this->convertPayload($batch, $this->format);
+        $payload = $this->convertPayload($batch, ProtobufFormat::Protobuf);
         if (!$count = $payload->items) {
             return Future::complete(true);
         }
@@ -170,7 +171,7 @@ abstract class OtlpHttpExporter implements Exporter {
 
                 $partialSuccess = $this->mapResponse($response);
 
-                $this->duration->record((hrtime(true) - $start) / 1e9, ['http.response.status_code' => $response->getStatus(), ...$this->attributes]);
+                $this->duration->record((hrtime(true) - $start) / 1e9, ['rpc.grpc.status_code' => 0, ...$this->attributes]);
             } catch (Throwable $e) {
                 if ($e instanceof TransientExportException && $e->getPrevious()) {
                     $e = $e->getPrevious();
@@ -178,9 +179,9 @@ abstract class OtlpHttpExporter implements Exporter {
 
                 $attributes = $this->attributes;
                 $attributes['error.type'] = $e::class;
-                if ($e instanceof HttpException && $e->getCode()) {
-                    $attributes['error.type'] = $e->getCode();
-                    $attributes['http.response.status_code'] = $e->getCode();
+                if ($e instanceof GrpcException) {
+                    $attributes['error.type'] = $e->status->name;
+                    $attributes['rpc.grpc.status_code'] = $e->status->value;
                 }
                 $this->duration->record((hrtime(true) - $start) / 1e9, $attributes);
                 $this->exported->add($count, $attributes);
@@ -236,25 +237,42 @@ abstract class OtlpHttpExporter implements Exporter {
     }
 
     private function mapResponse(Response $response): ?PartialSuccess {
+        $body = $response->getBody()->buffer();
+        $prefix = unpack('Ccompressed/Nlength', $body);
+        $payload = substr($body, 5, $prefix['length']);
+        unset($body);
+
+        if ($prefix['compressed']) {
+            /** @noinspection PhpComposerExtensionStubsInspection */
+            $payload = match ($response->getHeader('grpc-encoding')) {
+                'gzip' => \gzdecode($payload),
+            };
+        }
+
         $message = new $this->responseClass;
-        Serializer::hydrate($message, $response->getBody()->buffer(), $this->format);
+        Serializer::hydrate($message, $payload, ProtobufFormat::Protobuf);
 
         return $this->convertResponse($message);
     }
 
     private function prepareRequest(Message $message): Request {
-        $payload = Serializer::serialize($message, $this->format);
+        $payload = Serializer::serialize($message, ProtobufFormat::Protobuf);
         $request = new Request($this->endpoint, 'POST');
+        /** @noinspection PhpParamsInspection */
+        $request->setProtocolVersions(['2']);
         $request->setHeader('user-agent', self::userAgent());
-        $request->setHeader('content-type', Serializer::contentType($this->format));
+        $request->setHeader('content-type', 'application/grpc+proto');
         if ($this->compression === 'gzip' && extension_loaded('zlib')) {
             $payload = \gzencode($payload);
-            $request->setHeader('content-encoding', 'gzip');
+            $request->setHeader('grpc-encoding', 'gzip');
+            $request->setHeader('grpc-accept-encoding', 'gzip');
         }
         foreach ($this->headers as $header => $value) {
             $request->addHeader($header, $value);
         }
-        $request->setBody($payload);
+
+        $prefix = pack('CN', +$request->hasHeader('grpc-encoding'), strlen($payload));
+        $request->setBody($prefix . $payload);
 
         return $request;
     }
@@ -271,16 +289,42 @@ abstract class OtlpHttpExporter implements Exporter {
             $response = null;
             try {
                 $response = $this->client->request(clone $r, new CompositeCancellation($c, new TimeoutCancellation($this->timeout)));
+                $trailers = $response->getTrailers()->await($c);
 
-                if ($response->getStatus() >= 200 && $response->getStatus() < 300) {
+                $status = $trailers->hasHeader('grpc-status')
+                    ? GrpcStatus::tryFrom(+$trailers->getHeader('grpc-status')) ?? GrpcStatus::Unknown
+                    : match ($response->getStatus()) {
+                        // https://github.com/grpc/grpc/blob/master/doc/http-grpc-status-mapping.md
+                        400 => GrpcStatus::Internal,
+                        401 => GrpcStatus::Unauthenticated,
+                        403 => GrpcStatus::PermissionDenied,
+                        404 => GrpcStatus::Unimplemented,
+                        429,
+                        502,
+                        503,
+                        504 => GrpcStatus::Unavailable,
+                        default => GrpcStatus::Unknown,
+                    };
+
+                if ($status === GrpcStatus::Ok) {
                     return $response;
                 }
+                $retryable = match ($status) {
+                    GrpcStatus::Cancelled,
+                    GrpcStatus::DeadlineExceeded,
+                    GrpcStatus::Aborted,
+                    GrpcStatus::OutOfRange,
+                    GrpcStatus::Unavailable,
+                    GrpcStatus::DataLoss,
+                        => true,
+                    default => false,
+                };
 
-                $e = new HttpException($response->getReason(), $response->getStatus());
-                if ($response->getStatus() >= 400 && $response->getStatus() < 600 && !in_array($response->getStatus(), [429, 502, 503, 504], true)) {
+                $e = new GrpcException($status, $trailers->getHeader('grpc-message'));
+                if (!$retryable) {
                     throw $e;
                 }
-                $this->logger->info('Retryable HTTP status during export {exception}', ['exception' => $e, 'status' => $response->getStatus(), 'retry' => $retries]);
+                $this->logger->info('Retryable gRPC status during export {exception}', ['exception' => $e, 'status' => $status->name, 'retry' => $retries]);
             } catch (SocketException | Http2ConnectionException | CancelledException $e) {
                 $this->logger->info('Retryable exception during export {exception}', ['exception' => $e, 'retry' => $retries]);
             }
