@@ -17,7 +17,6 @@ use Composer\InstalledVersions;
 use Google\Protobuf\Internal\Message;
 use InvalidArgumentException;
 use JetBrains\PhpStorm\ExpectedValues;
-use Nevay\OTelSDK\Common\Internal\Export\Exception\TransientExportException;
 use Nevay\OTelSDK\Common\Internal\Export\Exporter;
 use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use OpenTelemetry\API\Metrics\CounterInterface;
@@ -173,10 +172,6 @@ abstract class OtlpGrpcExporter implements Exporter {
 
                 $this->duration->record((hrtime(true) - $start) / 1e9, ['rpc.grpc.status_code' => 0, ...$this->attributes]);
             } catch (Throwable $e) {
-                if ($e instanceof TransientExportException && $e->getPrevious()) {
-                    $e = $e->getPrevious();
-                }
-
                 $attributes = $this->attributes;
                 $attributes['error.type'] = $e::class;
                 if ($e instanceof GrpcException) {
@@ -330,7 +325,7 @@ abstract class OtlpGrpcExporter implements Exporter {
             }
 
             if (++$retries === $this->maxRetries) {
-                throw new TransientExportException('Too many retries', 0, $e);
+                throw $e;
             }
 
             $delay = $this->retryDelay << $retries - 1;
@@ -341,7 +336,7 @@ abstract class OtlpGrpcExporter implements Exporter {
             try {
                 delay($delay, cancellation: $c);
             } catch (CancelledException) {
-                throw new TransientExportException('Cancelled', 0, $e);
+                throw $e;
             }
 
             unset($e);
