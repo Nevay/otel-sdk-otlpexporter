@@ -34,7 +34,7 @@ final class MetricConverter {
         $resourceMetrics = [];
         $scopeMetrics = [];
         foreach ($batch as $metric) {
-            $resource = $metric->descriptor->resource;
+            $resource = $metric->resource;
             $instrumentationScope = $metric->descriptor->instrumentationScope;
 
             $resourceId = spl_object_id($resource);
