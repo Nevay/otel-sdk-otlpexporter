@@ -5,7 +5,7 @@ use Nevay\OTelSDK\Metrics\Data\Temporality;
 use Nevay\OTelSDK\Metrics\InstrumentType;
 use Nevay\OTelSDK\Metrics\TemporalityResolver;
 
-enum OltpTemporality implements TemporalityResolver {
+enum OtlpTemporality implements TemporalityResolver {
 
     /**
      * Choose cumulative aggregation temporality for all instrument kinds.
