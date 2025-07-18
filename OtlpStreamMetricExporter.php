@@ -37,7 +37,7 @@ final class OtlpStreamMetricExporter extends OtlpStreamExporter implements Metri
         $name ??= $type . '/' . ++self::$instanceCounter;
 
         $version = InstalledVersions::getVersionRanges('tbachert/otel-sdk-otlpexporter');
-        $meter = $meterProvider->getMeter('com.tobiasbachert.otel.sdk.otlpexporter', $version, 'https://opentelemetry.io/schemas/1.34.0');
+        $meter = $meterProvider->getMeter('com.tobiasbachert.otel.sdk.otlpexporter', $version, 'https://opentelemetry.io/schemas/1.36.0');
 
         $inflight = $meter->createUpDownCounter(
             'otel.sdk.exporter.metric_data_point.inflight',
