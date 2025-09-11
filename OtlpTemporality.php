@@ -10,13 +10,13 @@ enum OtlpTemporality implements TemporalityResolver {
     /**
      * Choose cumulative aggregation temporality for all instrument kinds.
      */
-    case Delta;
+    case Cumulative;
     /**
      * Choose Delta aggregation temporality for Counter, Asynchronous Counter
      * and Histogram instrument kinds, choose Cumulative aggregation for
      * UpDownCounter and Asynchronous UpDownCounter instrument kinds.
      */
-    case Cumulative;
+    case Delta;
     /**
      * This configuration uses Delta aggregation temporality for Synchronous
      * Counter and Histogram and uses Cumulative aggregation temporality for
