@@ -55,8 +55,8 @@ final class OtlpGrpcMetricExporter extends OtlpGrpcExporter implements MetricExp
         $type = 'otlp_grpc_metric_exporter';
         $name ??= $type . '/' . ++self::$instanceCounter;
 
-        $version = InstalledVersions::getVersionRanges('tbachert/otel-sdk-otlpexporter');
-        $meter = $meterProvider->getMeter('com.tobiasbachert.otel.sdk.otlpexporter', $version);
+        $version = InstalledVersions::getPrettyVersion('tbachert/otel-sdk-otlpexporter');
+        $meter = $meterProvider->getMeter('com.tobiasbachert.otel.sdk.otlpexporter', $version, 'https://opentelemetry.io/schemas/1.36.0');
 
         $inflight = $meter->createUpDownCounter(
             'otel.sdk.exporter.metric_data_point.inflight',

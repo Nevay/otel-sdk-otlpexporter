@@ -29,7 +29,7 @@ final class OtlpStreamSpanExporter extends OtlpStreamExporter implements SpanExp
         $type = 'otlp_stream_span_exporter';
         $name ??= $type . '/' . ++self::$instanceCounter;
 
-        $version = InstalledVersions::getVersionRanges('tbachert/otel-sdk-otlpexporter');
+        $version = InstalledVersions::getPrettyVersion('tbachert/otel-sdk-otlpexporter');
         $meter = $meterProvider->getMeter('com.tobiasbachert.otel.sdk.otlpexporter', $version, 'https://opentelemetry.io/schemas/1.36.0');
 
         $inflight = $meter->createUpDownCounter(
