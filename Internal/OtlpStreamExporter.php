@@ -3,6 +3,7 @@ namespace Nevay\OTelSDK\Otlp\Internal;
 
 use Amp\ByteStream\WritableStream;
 use Amp\Cancellation;
+use Amp\DeferredFuture;
 use Amp\Future;
 use Google\Protobuf\Internal\Message;
 use Nevay\OTelSDK\Common\Internal\Export\Exporter;
@@ -12,7 +13,6 @@ use OpenTelemetry\API\Metrics\HistogramInterface;
 use OpenTelemetry\API\Metrics\UpDownCounterInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
-use function Amp\async;
 use function hrtime;
 
 /**
@@ -26,7 +26,7 @@ abstract class OtlpStreamExporter implements Exporter {
 
     private readonly ProtobufFormat $format;
     private ?WritableStream $stream;
-    private ?Future $write = null;
+    private Future $write;
     private readonly LoggerInterface $logger;
 
     private readonly UpDownCounterInterface $inflight;
@@ -45,6 +45,7 @@ abstract class OtlpStreamExporter implements Exporter {
     ) {
         $this->format = ProtobufFormat::Json;
         $this->stream = $stream;
+        $this->write = Future::complete();
         $this->logger = $logger;
         $this->inflight = $inflight;
         $this->exported = $exported;
@@ -80,30 +81,29 @@ abstract class OtlpStreamExporter implements Exporter {
         unset($batch);
         $payload = Serializer::serialize($payload->message, $this->format) . "\n";
 
-        $future = async(function(WritableStream $stream, string $payload) use ($count): bool {
-            $this->inflight->add($count, $this->attributes);
+        $deferred = new DeferredFuture();
+        $this->write = $deferred->getFuture();
+        $this->inflight->add($count, $this->attributes);
 
-            $start = hrtime(true);
-            try {
-                $stream->write($payload);
+        $start = hrtime(true);
+        try {
+            $stream->write($payload);
 
-                $this->duration->record((hrtime(true) - $start) / 1e9, $this->attributes);
-            } catch (Throwable $e) {
-                $this->duration->record((hrtime(true) - $start) / 1e9, ['error.type' => $e::class, ...$this->attributes]);
-                $this->exported->add($count, ['error.type' => $e::class, ...$this->attributes]);
-                $this->logger->warning('Export failure: {exception}', ['exception' => $e, ...$this->attributes]);
+            $this->duration->record((hrtime(true) - $start) / 1e9, $this->attributes);
+        } catch (Throwable $e) {
+            $this->duration->record((hrtime(true) - $start) / 1e9, ['error.type' => $e::class, ...$this->attributes]);
+            $this->exported->add($count, ['error.type' => $e::class, ...$this->attributes]);
+            $this->logger->warning('Export failure: {exception}', ['exception' => $e, ...$this->attributes]);
 
-                return false;
-            } finally {
-                $this->inflight->add(-$count, $this->attributes);
-            }
+            return Future::complete(false);
+        } finally {
+            $deferred->complete();
+            $this->inflight->add(-$count, $this->attributes);
+        }
 
-            $this->exported->add($count, $this->attributes);
+        $this->exported->add($count, $this->attributes);
 
-            return true;
-        }, $stream, $payload);
-
-        return $this->write = $future;
+        return Future::complete(true);
     }
 
     public function shutdown(?Cancellation $cancellation = null): bool {
@@ -112,7 +112,7 @@ abstract class OtlpStreamExporter implements Exporter {
         }
 
         $this->stream = null;
-        $this->write?->catch(static fn() => null)->await($cancellation);
+        $this->write->await($cancellation);
 
         return true;
     }
@@ -122,7 +122,7 @@ abstract class OtlpStreamExporter implements Exporter {
             return false;
         }
 
-        $this->write?->catch(static fn() => null)->await($cancellation);
+        $this->write->await($cancellation);
 
         return true;
     }
