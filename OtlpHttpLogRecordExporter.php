@@ -18,6 +18,7 @@ use Opentelemetry\Proto\Collector\Logs\V1\ExportLogsServiceResponse;
 use Psr\Http\Message\UriInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use const PHP_INT_MAX;
 
 /**
  * @implements OtlpHttpExporter<ReadableLogRecord, ExportLogsServiceRequest, ExportLogsServiceResponse>
@@ -36,6 +37,7 @@ final class OtlpHttpLogRecordExporter extends OtlpHttpExporter implements LogRec
         float $timeout = 10.,
         int $retryDelay = 5000,
         int $maxRetries = 5,
+        int $maxConcurrency = PHP_INT_MAX,
         MeterProviderInterface $meterProvider = new NoopMeterProvider(),
         LoggerInterface $logger = new NullLogger(),
         ?string $name = null,
@@ -76,6 +78,7 @@ final class OtlpHttpLogRecordExporter extends OtlpHttpExporter implements LogRec
             $timeout,
             $retryDelay,
             $maxRetries,
+            $maxConcurrency,
             $logger,
             $inflight,
             $exported,

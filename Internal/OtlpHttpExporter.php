@@ -19,15 +19,19 @@ use InvalidArgumentException;
 use JetBrains\PhpStorm\ExpectedValues;
 use Nevay\OTelSDK\Common\Internal\Export\Exporter;
 use Nevay\OTelSDK\Otlp\ProtobufFormat;
+use Nevay\Sync\Internal\LocalSemaphore;
+use Nevay\Sync\Internal\Semaphore;
 use OpenTelemetry\API\Metrics\CounterInterface;
 use OpenTelemetry\API\Metrics\HistogramInterface;
 use OpenTelemetry\API\Metrics\UpDownCounterInterface;
 use Psr\Http\Message\UriInterface;
 use Psr\Log\LoggerInterface;
+use Revolt\EventLoop;
 use Throwable;
 use function Amp\async;
 use function Amp\delay;
 use function array_key_last;
+use function assert;
 use function extension_loaded;
 use function hrtime;
 use function in_array;
@@ -36,6 +40,7 @@ use function sprintf;
 use function strtotime;
 use function time;
 use function trim;
+use const PHP_INT_MAX;
 
 /**
  * @internal
@@ -56,6 +61,8 @@ abstract class OtlpHttpExporter implements Exporter {
     private readonly float $timeout;
     private readonly int $retryDelay;
     private readonly int $maxRetries;
+    private readonly int $maxConcurrency;
+    private readonly Semaphore $semaphore;
     private readonly LoggerInterface $logger;
 
     /** @var array<int, Future> */
@@ -85,6 +92,7 @@ abstract class OtlpHttpExporter implements Exporter {
         float $timeout,
         int $retryDelay,
         int $maxRetries,
+        int $maxConcurrency,
         LoggerInterface $logger,
         UpDownCounterInterface $inflight,
         CounterInterface $exported,
@@ -111,6 +119,8 @@ abstract class OtlpHttpExporter implements Exporter {
         $this->timeout = $timeout;
         $this->retryDelay = $retryDelay;
         $this->maxRetries = $maxRetries;
+        $this->maxConcurrency = $maxConcurrency;
+        $this->semaphore = new LocalSemaphore();
         $this->logger = $logger;
         $this->inflight = $inflight;
         $this->exported = $exported;
@@ -159,6 +169,10 @@ abstract class OtlpHttpExporter implements Exporter {
         $request = $this->prepareRequest($payload->message);
         $cancellation = $this->cancellation($cancellation);
 
+        unset($payload);
+        assert($this->semaphore->availablePermits($this->maxConcurrency), 'Export() should not be be called concurrently with other Export calls for the same exporter instance.');
+        $this->semaphore->acquire(PHP_INT_MAX);
+
         $future = async(function(Request $request, Cancellation $cancellation) use ($count): bool {
             $this->inflight->add($count, $this->attributes);
 
@@ -198,10 +212,22 @@ abstract class OtlpHttpExporter implements Exporter {
             return true;
         }, $request, $cancellation);
 
+        $suspension = EventLoop::getSuspension();
         $id = array_key_last($this->pending) + 1;
-        $this->pending[$id] = $future->finally(function() use ($id): void {
+        $this->pending[$id] = $future->finally(function() use ($id, &$suspension): void {
             unset($this->pending[$id]);
+            $this->semaphore->release();
+
+            try {
+                $suspension?->resume();
+            } catch (Throwable) {}
         });
+
+        unset($request, $cancellation);
+        if ($this->semaphore->acquire($this->maxConcurrency)) {
+            $this->semaphore->release();
+        }
+        $suspension = null;
 
         return $future;
     }

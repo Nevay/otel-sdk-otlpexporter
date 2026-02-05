@@ -25,6 +25,7 @@ use Psr\Http\Message\UriInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use function sprintf;
+use const PHP_INT_MAX;
 
 /**
  * @implements OtlpGrpcExporter<Metric, ExportMetricsServiceRequest, ExportMetricsServiceResponse>
@@ -42,6 +43,7 @@ final class OtlpGrpcMetricExporter extends OtlpGrpcExporter implements MetricExp
         float $timeout = 10.,
         int $retryDelay = 5000,
         int $maxRetries = 5,
+        int $maxConcurrency = PHP_INT_MAX,
         private readonly TemporalityResolver $temporalityResolver = OtlpTemporality::Cumulative,
         private readonly Aggregation $aggregation = new DefaultAggregation(),
         MeterProviderInterface $meterProvider = new NoopMeterProvider(),
@@ -84,6 +86,7 @@ final class OtlpGrpcMetricExporter extends OtlpGrpcExporter implements MetricExp
             $timeout,
             $retryDelay,
             $maxRetries,
+            $maxConcurrency,
             $logger,
             $inflight,
             $exported,
