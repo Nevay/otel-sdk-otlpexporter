@@ -68,6 +68,7 @@ abstract class OtlpGrpcExporter implements Exporter {
     private readonly int $retryDelay;
     private readonly int $maxRetries;
     private readonly int $maxConcurrency;
+    private readonly int $maxResponseBodySize;
     private readonly Semaphore $semaphore;
     private readonly LoggerInterface $logger;
 
@@ -98,6 +99,7 @@ abstract class OtlpGrpcExporter implements Exporter {
         int $retryDelay,
         int $maxRetries,
         int $maxConcurrency,
+        int $maxResponseBodySize,
         LoggerInterface $logger,
         UpDownCounterInterface $inflight,
         CounterInterface $exported,
@@ -114,6 +116,9 @@ abstract class OtlpGrpcExporter implements Exporter {
         if ($maxRetries < 0) {
             throw new InvalidArgumentException(sprintf('Maximum retry count (%d) must be greater than or equal to zero', $maxRetries));
         }
+        if ($maxResponseBodySize < 0) {
+            throw new InvalidArgumentException(sprintf('Maximum response body size (%d) must be greater than or equal to zero', $maxResponseBodySize));
+        }
 
         $this->responseClass = $responseClass;
         $this->client = $client;
@@ -124,6 +129,7 @@ abstract class OtlpGrpcExporter implements Exporter {
         $this->retryDelay = $retryDelay;
         $this->maxRetries = $maxRetries;
         $this->maxConcurrency = $maxConcurrency;
+        $this->maxResponseBodySize = $maxResponseBodySize;
         $this->semaphore = new LocalSemaphore();
         $this->logger = $logger;
         $this->inflight = $inflight;
@@ -185,7 +191,7 @@ abstract class OtlpGrpcExporter implements Exporter {
                 $response = $this->sendRequest($request, $cancellation);
                 unset($request);
 
-                $payload = self::decodeGrpcStream($response->getBody(), $response->getHeader('grpc-encoding'), $cancellation);
+                $payload = self::decodeGrpcStream($response->getBody(), $response->getHeader('grpc-encoding'), $cancellation, $this->maxResponseBodySize);
                 $message = new $this->responseClass;
                 Serializer::hydrate($message, $payload, ProtobufFormat::Protobuf);
                 unset($payload, $cancellation);
