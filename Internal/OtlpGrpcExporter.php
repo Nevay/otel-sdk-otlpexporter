@@ -1,6 +1,9 @@
 <?php declare(strict_types=1);
 namespace Nevay\OTelSDK\Otlp\Internal;
 
+use Amp\ByteStream\BufferException;
+use Amp\ByteStream\ReadableStream;
+use Amp\ByteStream\StreamException;
 use Amp\Cancellation;
 use Amp\CancelledException;
 use Amp\CompositeCancellation;
@@ -180,9 +183,12 @@ abstract class OtlpGrpcExporter implements Exporter {
             $start = hrtime(true);
             try {
                 $response = $this->sendRequest($request, $cancellation);
-                unset($request, $cancellation);
+                unset($request);
 
-                $partialSuccess = $this->mapResponse($response);
+                $payload = self::decodeGrpcStream($response->getBody(), $response->getHeader('grpc-encoding'), $cancellation);
+                $message = new $this->responseClass;
+                Serializer::hydrate($message, $payload, ProtobufFormat::Protobuf);
+                unset($payload, $cancellation);
 
                 $this->duration->record((hrtime(true) - $start) / 1e9, ['rpc.grpc.status_code' => 0, ...$this->attributes]);
             } catch (Throwable $e) {
@@ -201,7 +207,7 @@ abstract class OtlpGrpcExporter implements Exporter {
                 $this->inflight->add(-$count, $this->attributes);
             }
 
-            $partialSuccess ??= new PartialSuccess('');
+            $partialSuccess = $this->convertResponse($message) ?? new PartialSuccess('');
 
             $this->exported->add($count - $partialSuccess->rejectedItems, $this->attributes);
             $this->exported->add($partialSuccess->rejectedItems, ['error.type' => 'rejected', ...$this->attributes]);
@@ -257,23 +263,55 @@ abstract class OtlpGrpcExporter implements Exporter {
         return true;
     }
 
-    private function mapResponse(Response $response): ?PartialSuccess {
-        $body = $response->getBody()->buffer();
-        $prefix = unpack('Ccompressed/Nlength', $body);
-        $payload = substr($body, 5, $prefix['length']);
-        unset($body);
-
-        if ($prefix['compressed']) {
-            /** @noinspection PhpComposerExtensionStubsInspection */
-            $payload = match ($response->getHeader('grpc-encoding')) {
-                'gzip' => \gzdecode($payload),
-            };
+    /**
+     * @throws StreamException
+     */
+    public static function decodeGrpcStream(ReadableStream $body, ?string $encoding, ?Cancellation $cancellation = null, int $limit = PHP_INT_MAX): string {
+        $buffer = '';
+        while (strlen($buffer) < 5 && ($data = $body->read($cancellation)) !== null) {
+            $buffer .= $data;
+        }
+        if (strlen($buffer) < 5) {
+            throw new StreamException('Invalid gRPC payload, no gRPC prefix detected');
         }
 
-        $message = new $this->responseClass;
-        Serializer::hydrate($message, $payload, ProtobufFormat::Protobuf);
+        $prefix = unpack('Ccompressed/Nlength', $buffer);
+        $length = $prefix['length'];
+        $buffer = substr($buffer, 5);
+        $payload = '';
 
-        return $this->convertResponse($message);
+        if ($prefix['compressed'] && $encoding !== 'identity') {
+            if (!extension_loaded('zlib')) {
+                throw new StreamException('Unsupported compression encoding, `ext-zlib` not installed');
+            }
+            $encoding = match ($encoding) {
+                'gzip' => \ZLIB_ENCODING_GZIP,
+                'deflate' => \ZLIB_ENCODING_DEFLATE,
+                default => throw new StreamException(sprintf('Unsupported compression encoding: %s', $encoding)),
+            };
+            $context = \inflate_init($encoding);
+            do {
+                $payload .= \inflate_add($context, substr($buffer, 0, $length));
+                $length -= strlen($buffer);
+                unset($buffer);
+            } while ($length > 0 && strlen($payload) <= $limit && ($buffer = $body->read($cancellation)) !== null);
+            $payload .= \inflate_add($context, '', \ZLIB_FINISH);
+        } else {
+            do {
+                $payload .= substr($buffer, 0, $length);
+                $length -= strlen($buffer);
+                unset($buffer);
+            } while ($length > 0 && strlen($payload) <= $limit && ($buffer = $body->read($cancellation)) !== null);
+        }
+
+        if (strlen($payload) > $limit) {
+            throw new BufferException($payload, sprintf('Buffer length limit of %d bytes exceeded', $limit));
+        }
+        if ($length > 0) {
+            throw new BufferException($payload, sprintf('Invalid gRPC payload, expected %d more bytes', $length));
+        }
+
+        return $payload;
     }
 
     private function prepareRequest(Message $message): Request {

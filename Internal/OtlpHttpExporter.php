@@ -179,9 +179,12 @@ abstract class OtlpHttpExporter implements Exporter {
             $start = hrtime(true);
             try {
                 $response = $this->sendRequest($request, $cancellation);
-                unset($request, $cancellation);
+                unset($request);
 
-                $partialSuccess = $this->mapResponse($response);
+                $payload = $response->getBody()->buffer($cancellation);
+                $message = new $this->responseClass;
+                Serializer::hydrate($message, $payload, $this->format);
+                unset($payload, $cancellation);
 
                 $this->duration->record((hrtime(true) - $start) / 1e9, ['http.response.status_code' => $response->getStatus(), ...$this->attributes]);
             } catch (Throwable $e) {
@@ -200,7 +203,7 @@ abstract class OtlpHttpExporter implements Exporter {
                 $this->inflight->add(-$count, $this->attributes);
             }
 
-            $partialSuccess ??= new PartialSuccess('');
+            $partialSuccess = $this->convertResponse($message) ?? new PartialSuccess('');
 
             $this->exported->add($count - $partialSuccess->rejectedItems, $this->attributes);
             $this->exported->add($partialSuccess->rejectedItems, ['error.type' => 'rejected', ...$this->attributes]);
@@ -254,13 +257,6 @@ abstract class OtlpHttpExporter implements Exporter {
         foreach (Future::iterate($this->pending, $cancellation) as $ignored) {}
 
         return true;
-    }
-
-    private function mapResponse(Response $response): ?PartialSuccess {
-        $message = new $this->responseClass;
-        Serializer::hydrate($message, $response->getBody()->buffer(), $this->format);
-
-        return $this->convertResponse($message);
     }
 
     private function prepareRequest(Message $message): Request {
