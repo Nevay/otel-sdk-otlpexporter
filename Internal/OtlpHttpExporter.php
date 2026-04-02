@@ -278,6 +278,7 @@ abstract class OtlpHttpExporter implements Exporter {
             $request->addHeader($header, $value);
         }
         $request->setBody($payload);
+        $request->setAttribute('url.template', $this->endpoint->getPath());
 
         return $request;
     }

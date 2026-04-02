@@ -338,6 +338,7 @@ abstract class OtlpGrpcExporter implements Exporter {
 
         $prefix = pack('CN', +$request->hasHeader('grpc-encoding'), strlen($payload));
         $request->setBody($prefix . $payload);
+        $request->setAttribute('url.template', $this->endpoint->getPath());
 
         return $request;
     }
