@@ -32,6 +32,7 @@ final class OtlpStreamMetricExporter extends OtlpStreamExporter implements Metri
         private readonly Aggregation $aggregation = new DefaultAggregation(),
         MeterProviderInterface $meterProvider = new NoopMeterProvider(),
         LoggerInterface $logger = new NullLogger(),
+        ?string $name = null,
     ) {
         $type = 'otlp_stream_metric_exporter';
         $name ??= $type . '/' . ++self::$instanceCounter;

@@ -25,6 +25,7 @@ final class OtlpStreamSpanExporter extends OtlpStreamExporter implements SpanExp
         WritableStream $stream,
         MeterProviderInterface $meterProvider = new NoopMeterProvider(),
         LoggerInterface $logger = new NullLogger(),
+        ?string $name = null,
     ) {
         $type = 'otlp_stream_span_exporter';
         $name ??= $type . '/' . ++self::$instanceCounter;

@@ -25,6 +25,7 @@ final class OtlpStreamLogRecordExporter extends OtlpStreamExporter implements Lo
         WritableStream $stream,
         MeterProviderInterface $meterProvider = new NoopMeterProvider(),
         LoggerInterface $logger = new NullLogger(),
+        ?string $name = null,
     ) {
         $type = 'otlp_stream_logrecord_exporter';
         $name ??= $type . '/' . ++self::$instanceCounter;
