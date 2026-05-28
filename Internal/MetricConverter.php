@@ -48,7 +48,7 @@ final class MetricConverter {
                 = self::convertScopeMetrics($instrumentationScope);
 
             $pScopeMetrics->getMetrics()[] = self::convertMetric($metric, $format);
-            $count++;
+            $count += count($metric->data->dataPoints);
         }
 
         return $pExportMetricsServiceRequest;
