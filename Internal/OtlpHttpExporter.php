@@ -8,6 +8,7 @@ use Amp\DeferredCancellation;
 use Amp\Future;
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\HttpException;
+use Amp\Http\Client\InvalidRequestException;
 use Amp\Http\Client\Request;
 use Amp\Http\Client\Response;
 use Amp\Http\Client\SocketException;
@@ -37,6 +38,7 @@ use function hrtime;
 use function in_array;
 use function max;
 use function sprintf;
+use function strlen;
 use function strtotime;
 use function time;
 use function trim;
@@ -62,6 +64,7 @@ abstract class OtlpHttpExporter implements Exporter {
     private readonly int $retryDelay;
     private readonly int $maxRetries;
     private readonly int $maxConcurrency;
+    private readonly int $maxRequestBodySize;
     private readonly int $maxResponseBodySize;
     private readonly Semaphore $semaphore;
     private readonly LoggerInterface $logger;
@@ -94,6 +97,7 @@ abstract class OtlpHttpExporter implements Exporter {
         int $retryDelay,
         int $maxRetries,
         int $maxConcurrency,
+        int $maxRequestBodySize,
         int $maxResponseBodySize,
         LoggerInterface $logger,
         UpDownCounterInterface $inflight,
@@ -111,6 +115,12 @@ abstract class OtlpHttpExporter implements Exporter {
         if ($maxRetries < 0) {
             throw new InvalidArgumentException(sprintf('Maximum retry count (%d) must be greater than or equal to zero', $maxRetries));
         }
+        if ($maxConcurrency <= 0) {
+            throw new InvalidArgumentException(sprintf('Maximum concurrency (%d) must be greater than zero', $maxConcurrency));
+        }
+        if ($maxRequestBodySize < 0) {
+            throw new InvalidArgumentException(sprintf('Maximum request body size (%d) must be greater than or equal to zero', $maxRequestBodySize));
+        }
         if ($maxResponseBodySize < 0) {
             throw new InvalidArgumentException(sprintf('Maximum response body size (%d) must be greater than or equal to zero', $maxResponseBodySize));
         }
@@ -125,6 +135,7 @@ abstract class OtlpHttpExporter implements Exporter {
         $this->retryDelay = $retryDelay;
         $this->maxRetries = $maxRetries;
         $this->maxConcurrency = $maxConcurrency;
+        $this->maxRequestBodySize = $maxRequestBodySize;
         $this->maxResponseBodySize = $maxResponseBodySize;
         $this->semaphore = new LocalSemaphore();
         $this->logger = $logger;
@@ -267,6 +278,7 @@ abstract class OtlpHttpExporter implements Exporter {
 
     private function prepareRequest(Message $message): Request {
         $payload = Serializer::serialize($message, $this->format);
+        $payloadSize = strlen($payload);
         $request = new Request($this->endpoint, 'POST');
         $request->setHeader('user-agent', self::userAgent());
         $request->setHeader('content-type', Serializer::contentType($this->format));
@@ -279,6 +291,10 @@ abstract class OtlpHttpExporter implements Exporter {
         }
         $request->setBody($payload);
         $request->setAttribute('url.template', $this->endpoint->getPath());
+
+        if ($payloadSize > $this->maxRequestBodySize) {
+            throw new InvalidRequestException($request, sprintf('Maximum request size of %d bytes exceeded', $this->maxRequestBodySize));
+        }
 
         return $request;
     }

@@ -11,6 +11,7 @@ use Amp\DeferredCancellation;
 use Amp\Future;
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\HttpException;
+use Amp\Http\Client\InvalidRequestException;
 use Amp\Http\Client\Request;
 use Amp\Http\Client\Response;
 use Amp\Http\Client\SocketException;
@@ -68,6 +69,7 @@ abstract class OtlpGrpcExporter implements Exporter {
     private readonly int $retryDelay;
     private readonly int $maxRetries;
     private readonly int $maxConcurrency;
+    private readonly int $maxRequestBodySize;
     private readonly int $maxResponseBodySize;
     private readonly Semaphore $semaphore;
     private readonly LoggerInterface $logger;
@@ -99,6 +101,7 @@ abstract class OtlpGrpcExporter implements Exporter {
         int $retryDelay,
         int $maxRetries,
         int $maxConcurrency,
+        int $maxRequestBodySize,
         int $maxResponseBodySize,
         LoggerInterface $logger,
         UpDownCounterInterface $inflight,
@@ -116,6 +119,12 @@ abstract class OtlpGrpcExporter implements Exporter {
         if ($maxRetries < 0) {
             throw new InvalidArgumentException(sprintf('Maximum retry count (%d) must be greater than or equal to zero', $maxRetries));
         }
+        if ($maxConcurrency <= 0) {
+            throw new InvalidArgumentException(sprintf('Maximum concurrency (%d) must be greater than zero', $maxConcurrency));
+        }
+        if ($maxRequestBodySize < 0) {
+            throw new InvalidArgumentException(sprintf('Maximum request body size (%d) must be greater than or equal to zero', $maxRequestBodySize));
+        }
         if ($maxResponseBodySize < 0) {
             throw new InvalidArgumentException(sprintf('Maximum response body size (%d) must be greater than or equal to zero', $maxResponseBodySize));
         }
@@ -129,6 +138,7 @@ abstract class OtlpGrpcExporter implements Exporter {
         $this->retryDelay = $retryDelay;
         $this->maxRetries = $maxRetries;
         $this->maxConcurrency = $maxConcurrency;
+        $this->maxRequestBodySize = $maxRequestBodySize;
         $this->maxResponseBodySize = $maxResponseBodySize;
         $this->semaphore = new LocalSemaphore();
         $this->logger = $logger;
@@ -322,6 +332,7 @@ abstract class OtlpGrpcExporter implements Exporter {
 
     private function prepareRequest(Message $message): Request {
         $payload = Serializer::serialize($message, ProtobufFormat::Protobuf);
+        $payloadSize = strlen($payload);
         $request = new Request($this->endpoint, 'POST');
         /** @noinspection PhpParamsInspection */
         $request->setProtocolVersions(['2']);
@@ -339,6 +350,10 @@ abstract class OtlpGrpcExporter implements Exporter {
         $prefix = pack('CN', +$request->hasHeader('grpc-encoding'), strlen($payload));
         $request->setBody($prefix . $payload);
         $request->setAttribute('url.template', $this->endpoint->getPath());
+
+        if ($payloadSize > $this->maxRequestBodySize) {
+            throw new InvalidRequestException($request, sprintf('Maximum request size of %d bytes exceeded', $this->maxRequestBodySize));
+        }
 
         return $request;
     }
