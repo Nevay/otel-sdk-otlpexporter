@@ -24,6 +24,13 @@ final class Converter {
                 ->setValue(self::convertAnyValue($value));
         }
         $pResource->setDroppedAttributesCount($resource->attributes->getDroppedAttributesCount());
+        foreach ($resource->entities as $entity) {
+            $pResource->getEntityRefs()[] = (new Proto\Common\V1\EntityRef())
+                ->setType($entity->type)
+                ->setIdKeys($entity->identity)
+                ->setDescriptionKeys($entity->description)
+                ->setSchemaUrl($entity->schemaUrl);
+        }
 
         return $pResource;
     }
