@@ -13,11 +13,11 @@ use Amp\Http\Client\Request;
 use Amp\Http\Client\Response;
 use Amp\Http\Client\SocketException;
 use Amp\Http\Http2\Http2ConnectionException;
-use Amp\TimeoutCancellation;
 use Composer\InstalledVersions;
 use Google\Protobuf\Internal\Message;
 use InvalidArgumentException;
 use JetBrains\PhpStorm\ExpectedValues;
+use Nevay\OTelSDK\Common\Internal\Export\Cancellations;
 use Nevay\OTelSDK\Common\Internal\Export\Exporter;
 use Nevay\OTelSDK\Otlp\ProtobufFormat;
 use Nevay\Sync\Internal\LocalSemaphore;
@@ -310,7 +310,7 @@ abstract class OtlpHttpExporter implements Exporter {
         for ($retries = 0;;) {
             $response = null;
             try {
-                $response = $this->client->request(clone $r, new CompositeCancellation($c, new TimeoutCancellation($this->timeout)));
+                $response = $this->client->request(clone $r, Cancellations::withTimeout($this->timeout, $c));
 
                 if ($response->getStatus() >= 200 && $response->getStatus() < 300) {
                     return $response;
