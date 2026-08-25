@@ -41,9 +41,11 @@ use function hrtime;
 use function max;
 use function mt_rand;
 use function pack;
+use function preg_replace;
 use function sprintf;
 use function strlen;
 use function strtotime;
+use function strtoupper;
 use function substr;
 use function time;
 use function trim;
@@ -206,13 +208,14 @@ abstract class OtlpGrpcExporter implements Exporter {
                 Serializer::hydrate($message, $payload, ProtobufFormat::Protobuf);
                 unset($payload, $cancellation);
 
-                $this->duration->record((hrtime(true) - $start) / 1e9, ['rpc.grpc.status_code' => 0, ...$this->attributes]);
+                $this->duration->record((hrtime(true) - $start) / 1e9, ['rpc.status_code' => 'OK', ...$this->attributes]);
             } catch (Throwable $e) {
                 $attributes = $this->attributes;
                 $attributes['error.type'] = $e::class;
                 if ($e instanceof GrpcException) {
-                    $attributes['error.type'] = $e->status->name;
-                    $attributes['rpc.grpc.status_code'] = $e->status->value;
+                    $status = strtoupper(preg_replace('/([a-z])([A-Z])/', '\1_\2', $e->status->name));
+                    $attributes['error.type'] = $status;
+                    $attributes['rpc.status_code'] = $status;
                 }
                 $this->duration->record((hrtime(true) - $start) / 1e9, $attributes);
                 $this->exported->add($count, $attributes);
