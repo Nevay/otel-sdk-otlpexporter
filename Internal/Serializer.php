@@ -41,7 +41,7 @@ final class Serializer {
     public static function hydrate(Message $message, string $payload, ProtobufFormat $format): void {
         match ($format) {
             ProtobufFormat::Protobuf => $message->mergeFromString($payload),
-            ProtobufFormat::Json => $message->mergeFromJsonString($payload, ignore_unknown: true),
+            ProtobufFormat::Json => $message->mergeFromJsonString($payload, true),
         };
     }
 
