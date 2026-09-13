@@ -29,7 +29,7 @@ final class Converter {
                 ->setType($entity->type)
                 ->setIdKeys($entity->identity)
                 ->setDescriptionKeys($entity->description)
-                ->setSchemaUrl($entity->schemaUrl);
+                ->setSchemaUrl((string) $entity->schemaUrl);
         }
 
         return $pResource;
