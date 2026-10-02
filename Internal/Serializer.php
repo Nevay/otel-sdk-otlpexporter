@@ -10,9 +10,11 @@ use function class_exists;
 use function json_decode;
 use function json_encode;
 use function lcfirst;
+use function phpversion;
 use function property_exists;
 use function strtr;
 use function ucwords;
+use function version_compare;
 use const JSON_UNESCAPED_SLASHES;
 use const JSON_UNESCAPED_UNICODE;
 
@@ -30,8 +32,11 @@ final class Serializer {
 
     public static function serialize(Message $message, ProtobufFormat $format): string {
         return match ($format) {
-            ProtobufFormat::Protobuf => $message->serializeToString(65535),
-            # https://github.com/protocolbuffers/protobuf/pull/12707
+            // https://github.com/protocolbuffers/protobuf/pull/27874 since 5.36
+            ProtobufFormat::Protobuf => ($v = phpversion('protobuf')) === false || version_compare($v, '5.36.0', '>=')
+                ? $message->serializeToString(65535)
+                : $message->serializeToString(),
+            # https://github.com/protocolbuffers/protobuf/pull/12707 since 4.31
             ProtobufFormat::Json => class_exists(\Google\Protobuf\PrintOptions::class)
                 ? $message->serializeToJsonString(\Google\Protobuf\PrintOptions::ALWAYS_PRINT_ENUMS_AS_INTS)
                 : self::postProcessJsonEnumValues($message, $message->serializeToJsonString()),
