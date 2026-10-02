@@ -30,7 +30,7 @@ final class Serializer {
 
     public static function serialize(Message $message, ProtobufFormat $format): string {
         return match ($format) {
-            ProtobufFormat::Protobuf => $message->serializeToString(),
+            ProtobufFormat::Protobuf => $message->serializeToString(65535),
             # https://github.com/protocolbuffers/protobuf/pull/12707
             ProtobufFormat::Json => class_exists(\Google\Protobuf\PrintOptions::class)
                 ? $message->serializeToJsonString(\Google\Protobuf\PrintOptions::ALWAYS_PRINT_ENUMS_AS_INTS)
